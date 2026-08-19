@@ -1,23 +1,32 @@
 clc
 clear
 
-%% Add and Define Necessary Paths
-main_project_folder = 'D:\Morteza\MyProjects\ANSYMB2024';
-addpath(genpath(main_project_folder)); % main folder containing all codes and data
+%% Paths
+% Everything comes from the repository config, so this runs from a fresh
+% clone. Put config on the path first:  addpath('config')  -- see README.
+cfg = ansymb_config();
+addpath(genpath(cfg.code));
 
-data_path = 'D:\Morteza\MyProjects\ANSYMB2024\data\';
-processed_data_path = [data_path, '5_single-subject-EEG-analysis\'];
-study_folder = [data_path, '7_STUDY\Epoched_data'];
+if isempty(cfg.raw)
+    error(['This stage reads the recorded and intermediate data, which is ' ...
+           'not shipped with the repository. Set cfg.raw in ' ...
+           'config/ansymb_config.m to your copy of the dataset.']);
+end
+
+processed_data_path = cfg.singleSubj;
+study_folder        = fullfile(cfg.study, 'Epoched_data');
 
 
 
 %% Run EEGLAB
-current_path = pwd;
-cd('D:\Morteza\Toolboxes\EEGLAB\eeglab2026.0.0')
+if isempty(cfg.eeglab)
+    error(['EEGLAB was not found. Add it to the MATLAB path, or set ' ...
+           'cfg.eeglab in config/ansymb_config.m.']);
+end
+addpath(cfg.eeglab);
 if ~exist('ALLCOM','var')
     eeglab;
 end
-cd(current_path)
 
 
 %% Create and save main STUDY Files. 

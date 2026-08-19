@@ -2,9 +2,10 @@
 % Author: Morteza Khosrotabar, 05.08.2026
 
 
-load(['D:\Morteza\MyProjects\ANSYMB2024\Code\Matlab\data_processing\', ...
-    'Group_Level_PostProcessing\Final_paper_plot_generation\', ...
-    'PAM_engagement_moments\Subjects_Force_Angle_warped.mat']);
+% Put config on the MATLAB path first:  addpath('config')  -- see README.
+cfg = ansymb_config();
+load(fullfile(cfg.derived, 'Subjects_Force_Angle_warped.mat'), ...
+    'Subject_Force_Angle_warped');
 S = 4;
 pressures = Subject_Force_Angle_warped{S,2}.pressure;
 P1_indx = find(pressures == 1);

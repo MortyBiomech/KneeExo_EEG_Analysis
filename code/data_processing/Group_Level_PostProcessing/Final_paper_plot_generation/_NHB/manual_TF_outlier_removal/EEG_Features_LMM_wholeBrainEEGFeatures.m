@@ -2,31 +2,28 @@ clc
 clear
 
 
-%% Add necessary paths
-main_project_path = 'D:\Morteza\MyProjects\ANSYMB2024\';
+%% Paths
+% Everything comes from the repository config, so this runs from a fresh
+% clone. Put config on the path first:  addpath('config')  -- see README.
+cfg = ansymb_config();
+addpath(genpath(cfg.code));
 
-addpath(genpath([main_project_path, 'Code']));
-addpath(genpath([main_project_path, 'data\7_STUDY\Epoched_data']));
+current_path = fileparts(mfilename('fullpath'));   % this script's folder
+derived_path = cfg.derived;                        % the shipped tables
 
-data_path         = [main_project_path, 'data\'];
-Code_path         = [main_project_path, 'Code\Matlab\data_processing\'];
-                        
+% Subjects_ICs_in_clusters.mat is one of the shipped derived tables.
+Subject_ICs_in_clusters_path = derived_path;
 
-icatimef_path     = [data_path, '5_single-subject-EEG-analysis\', ...
-                        'timewarp_test\Epoched_data'];
+% ERSP results written by code/ersp_analysis.
+ersp_results_path = fullfile(cfg.figures, 'ERSP');
 
-Subject_ICs_in_clusters_path = [Code_path, ...
-    'Group_Level_PostProcessing\Final_paper_plot_generation\', ...
-    'Detailed_Analysis_on_TF_regions\', ...
-    'extracting Subjects and ICs in the brain clusters'];
-
-
-current_path = ['D:\Morteza\MyProjects\ANSYMB2024\Code\Matlab', ...
-    '\data_processing\Group_Level_PostProcessing\', ...
-    'Final_paper_plot_generation\', ...
-    '_NHB\manual_TF_outlier_removal'];
-
-ersp_results_path = [current_path, '\ersp_results'];
+% Stages that need the full dataset; empty when cfg.raw is unset.
+if isempty(cfg.raw)
+    icatimef_path     = '';
+else
+    addpath(genpath(fullfile(cfg.study, 'Epoched_data')));
+    icatimef_path     = fullfile(cfg.singleSubj, 'timewarp_test', 'Epoched_data');
+end
 
 
 studyNames = {'Left Dorsal ACC', 'Left Parieto Occipital', ...
@@ -192,4 +189,4 @@ for study = 1:length(studyNames)
 
 end
 
-save([current_path, '\EEG_features_wholeBrain.mat'], "EEG_features_wholeBrain");
+save(fullfile(derived_path, 'EEG_features_wholeBrain.mat'), "EEG_features_wholeBrain");

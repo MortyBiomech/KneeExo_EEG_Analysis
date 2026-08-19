@@ -24,14 +24,15 @@ code/            analysis code
   data_processing/  the rest, mirroring the original working tree
 config/          ansymb_config.m — every path this analysis needs
 data/derived/    derived tables that regenerate the figures (see below)
-docs/            pipeline notes
+docs/            pipeline notes and toolbox setup
 figures/         output directory, created on first run
 ```
 
 The raw recordings are not in this repository — they are far too large. **The
-derived tables in `data/derived/` are sufficient to reproduce every figure and
-statistic in the manuscript** without them. Re-running the pipeline from raw
-data additionally requires the dataset (see *Data availability*).
+derived tables in `data/derived/` reproduce every manuscript figure except
+Fig. 1d**, without them; see *What you can run without the dataset* below.
+Re-running the pipeline from raw data additionally requires the dataset (see
+*Data availability*).
 
 ---
 
@@ -43,7 +44,34 @@ addpath('config');
 cfg = ansymb_config();
 ```
 
-Then run any analysis below. Nothing needs editing for the derived-data path.
+Nothing needs editing to run from the shipped derived tables. To re-run any
+stage from the recordings, set `cfg.raw` in `config/ansymb_config.m` to your
+copy of the dataset; every script builds its paths from there, and the ones that
+need it say so with a clear error rather than failing deep in a load.
+
+### What you can run without the dataset
+
+| | |
+| --- | --- |
+| **Runs from `data/derived/`** | Fig. 1a, 1b, 1c, 1e, 1f, Figs. 2–3, Supplementary |
+| **Needs `cfg.raw`** | Fig. 1d, the Fig. 1e concept panel (`concep_figure_panel_c.m`, which plots one raw EEG trace), and every upstream stage |
+
+Fig. 1d is the one gap. Its plotting script reads `EMG_Data_timewarped.mat`,
+an intermediate of about **2.1 GB** — far past what belongs in a git repository.
+Regenerate it by running `main_EMG_detailed_analysis.m` with `cfg.raw` set; it
+writes the file into `data/derived/`, after which `main_EMG_detailed_plot.m`
+runs normally.
+
+### Further reading
+
+- [docs/pipeline.md](docs/pipeline.md) — how the recordings become the numbers:
+  the stages, the order to run them in, and the conventions that will bite you
+  (three index spaces sharing field names, the protocol change after sub-9,
+  per-analysis subject exclusions).
+- [docs/toolboxes.md](docs/toolboxes.md) — external dependencies and how
+  `ansymb_config` locates them, including BeMoBIL.
+- [code/ersp_analysis/README.md](code/ersp_analysis/README.md) — the cluster
+  time-frequency analysis behind Figs. 2–3, and the three EEGLAB forks it uses.
 
 ---
 
@@ -110,7 +138,7 @@ External toolboxes, not included here — install separately and let
 | [EEGLAB](https://sccn.ucsd.edu/eeglab/) | 2026.0.0 |
 | [FieldTrip](https://www.fieldtriptoolbox.org/) | 20231127 |
 | [xdf-Matlab](https://github.com/xdf-modules/xdf-Matlab) | — |
-| [BeMoBIL pipeline](https://github.com/BeMoBIL/bemobil-pipeline) | see `docs/` |
+| [BeMoBIL pipeline](https://github.com/BeMoBIL/bemobil-pipeline) | see [docs/toolboxes.md](docs/toolboxes.md) |
 
 EEGLAB plugins: AMICA, ICLabel, dipfit, Zapline-Plus.
 
@@ -119,7 +147,8 @@ EEGLAB plugins: AMICA, ICLabel, dipfit, Zapline-Plus.
 ## Data availability
 
 The derived tables needed to reproduce the figures are in `data/derived/`;
-`MANIFEST.csv` records where each came from in the analysis tree.
+`MANIFEST.csv` records where each came from in the analysis tree. The one
+exception is Fig. 1d, noted above.
 
 The raw recordings are not distributed here. See the Data Availability statement
 of the manuscript for their location and access conditions.

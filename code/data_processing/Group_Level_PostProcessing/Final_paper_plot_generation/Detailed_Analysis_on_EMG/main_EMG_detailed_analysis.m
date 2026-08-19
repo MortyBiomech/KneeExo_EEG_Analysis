@@ -2,16 +2,24 @@ clc
 clear
 
 
-%% Add paths
-addpath(genpath('D:\Morteza\MyProjects\ANSYMB2024\Code'))
-data_path = 'D:\Morteza\MyProjects\ANSYMB2024\data\';
-epoched_data_path = [data_path, '6_Trials_Info_and_Epoched_data\'];
-current_path = ['D:\Morteza\MyProjects\ANSYMB2024\Code\Matlab', ...
-    '\data_processing\Group_Level_PostProcessing\', ...
-    'Final_paper_plot_generation\Detailed_Analysis_on_EMG\'];
-strutured_EMG_data_path = [...
-'D:\Morteza\MyProjects\ANSYMB2024\Code\Matlab\data_processing', ...
-'\EMG_processing\structured_EMG_data\'];
+%% Paths
+% Everything comes from the repository config, so this runs from a fresh
+% clone. Put config on the path first:  addpath('config')  -- see README.
+cfg = ansymb_config();
+addpath(genpath(cfg.code));
+
+current_path = fileparts(mfilename('fullpath'));   % this script's folder
+derived_path = cfg.derived;                        % the shipped tables
+
+% The structured EMG data is a per-subject intermediate produced by
+% EMG_processing/main_EMG_processing.m. It is too large to ship, so this
+% first section needs cfg.raw set; later sections read EMG_Data_timewarped
+% from data/derived and run without it.
+if isempty(cfg.raw)
+    structured_EMG_data_path = '';
+else
+    structured_EMG_data_path = cfg.structuredEMG;
+end
 
 
 %% Load the structured EMG data
@@ -34,10 +42,11 @@ for sub = 1:length(subject_list)
     
     disp(['Loading data from subject ', num2str(subject_list(sub)), ' ...'])
     
-    folderName = [strutured_EMG_data_path, 'sub-', ...
-        num2str(subject_list(sub))];
-    cd(folderName)
-    load(['sub-', num2str(subject_list(sub)),'_structured_EMG_data.mat'])
+    folderName = fullfile(structured_EMG_data_path, ...
+        ['sub-', num2str(subject_list(sub))]);
+    load(fullfile(folderName, ...
+        ['sub-', num2str(subject_list(sub)), '_structured_EMG_data.mat']), ...
+        'Main_data');
     structured_EMG_data = Main_data;
     EMG_time = cellfun(@(x) x.time, Main_data, 'UniformOutput', false);
     clear Main_data
@@ -258,5 +267,5 @@ EMG_Data_timewarped.final_warpingto = warpingvalues;
 EMG_Data_timewarped.data = Subject_EMG_Data_timewarped;
 
 fileName = 'EMG_Data_timewarped.mat';
-filePath = [current_path, fileName];
+filePath = fullfile(derived_path, fileName);
 save(filePath, "EMG_Data_timewarped")

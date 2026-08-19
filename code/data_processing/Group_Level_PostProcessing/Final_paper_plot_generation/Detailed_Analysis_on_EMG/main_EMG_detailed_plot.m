@@ -2,12 +2,27 @@ clc
 clear
 
 
-%% Add paths 
-addpath(genpath('D:\Morteza\MyProjects\ANSYMB2024\Code'))
+%% Paths
+% Everything comes from the repository config, so this runs from a fresh
+% clone. Put config on the path first:  addpath('config')  -- see README.
+cfg = ansymb_config();
+addpath(genpath(cfg.code));
 
 
 %% Load the data
-load EMG_Data_timewarped.mat
+% NOT SHIPPED. EMG_Data_timewarped.mat is about 2.1 GB -- far too large for
+% a git repository -- so it is the one input to a manuscript figure that
+% data/derived cannot supply. Regenerate it by running
+% main_EMG_detailed_analysis.m, which writes it into data/derived; that in
+% turn needs cfg.raw pointed at the recordings.
+timewarpedFile = fullfile(cfg.derived, 'EMG_Data_timewarped.mat');
+if ~isfile(timewarpedFile)
+    error(['EMG_Data_timewarped.mat not found at:\n  %s\n' ...
+           'It is ~2.1 GB and is not distributed with the repository. ' ...
+           'Run main_EMG_detailed_analysis.m to regenerate it.'], ...
+           timewarpedFile);
+end
+load(timewarpedFile, 'EMG_Data_timewarped');
 
 data = EMG_Data_timewarped.data;
 warpingto = EMG_Data_timewarped.final_warpingto;

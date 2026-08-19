@@ -2,12 +2,18 @@ clc
 clear
 
 %% Add and Define Necessary Paths
-main_project_folder = 'C:\Morteza\MyProjects\ANSYMB2024';
-addpath(genpath(main_project_folder)); % main folder containing all codes and data
+% Everything comes from the repository config, so this runs from a fresh
+% clone. Put config on the path first:  addpath('config')  -- see README.
+cfg = ansymb_config();
+addpath(genpath(cfg.code));
 
-data_path = 'C:\Morteza\MyProjects\ANSYMB2024\data\';
-EMG_features_path = [main_project_folder, ...
-    '\Code\Matlab\data_processing\EMG_processing\structured_EMG_data'];
+if isempty(cfg.raw)
+    error(['This stage reads per-subject intermediates that are not ' ...
+           'shipped with the repository. Set cfg.raw in ' ...
+           'config/ansymb_config.m to your copy of the dataset.']);
+end
+
+EMG_features_path = cfg.structuredEMG;
 
 
 %% Load EMG Features

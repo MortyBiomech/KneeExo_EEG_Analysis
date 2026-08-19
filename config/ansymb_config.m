@@ -40,14 +40,31 @@ function cfg = ansymb_config()
     % is the common case.
     cfg.raw = '';    % e.g. 'D:\ANSYMB2024_data'
 
+    % The folder numbers ARE the pipeline stages; scripts address them by
+    % these literal names. Every stage is listed here, whether or not the
+    % analyses shipped in this repository reach it, so that a script never
+    % has to build one of these names itself.
     if ~isempty(cfg.raw)
+        cfg.source      = fullfile(cfg.raw, '0_source_data');
         cfg.bids        = fullfile(cfg.raw, '1_BIDS_data');
         cfg.rawEEGLAB   = fullfile(cfg.raw, '2_raw-EEGLAB');
         cfg.preprocessed= fullfile(cfg.raw, '3_EEG-preprocessing');
         cfg.spatial     = fullfile(cfg.raw, '4_spatial-filters');
         cfg.singleSubj  = fullfile(cfg.raw, '5_single-subject-EEG-analysis');
+        cfg.trialsEvents= fullfile(cfg.raw, '6_0_Trials_Info_and_Events');
         cfg.trialsInfo  = fullfile(cfg.raw, '6_Trials_Info_and_Epoched_data');
         cfg.study       = fullfile(cfg.raw, '7_STUDY');
+        cfg.classification = fullfile(cfg.raw, '8_Classification');
+        cfg.expAnalysis = fullfile(cfg.raw, '9_EXP_Analysis');
+        cfg.timeFreq    = fullfile(cfg.raw, '10_Time_Frequency_Analysis');
+
+        % Per-subject EMG intermediates. The original code wrote these next
+        % to the source files, inside the code tree; they are derived,
+        % per-subject and large, so they belong with the rest of the data.
+        % Written by EMG_processing/main_EMG_processing.m, and by
+        % rebuild_EMG_classification_features.m into the _rebuilt variant.
+        cfg.structuredEMG        = fullfile(cfg.raw, 'structured_EMG_data');
+        cfg.structuredEMGRebuilt = fullfile(cfg.raw, 'structured_EMG_data_rebuilt');
     end
 
     %% External toolboxes

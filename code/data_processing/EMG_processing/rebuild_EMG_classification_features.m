@@ -41,14 +41,19 @@ clc
 clear
 
 %% Add and Define Necessary Paths
-main_project_folder = 'D:\Morteza\MyProjects\ANSYMB2024';
-addpath(genpath(fullfile(main_project_folder, 'Code\Matlab\data_processing\EMG_processing')));
+% Everything comes from the repository config, so this runs from a fresh
+% clone. Put config on the path first:  addpath('config')  -- see README.
+cfg = ansymb_config();
+addpath(genpath(cfg.code));
 
-data_path = 'D:\Morteza\MyProjects\ANSYMB2024\data\';
-epoched_data_path = [data_path, '6_Trials_Info_and_Epoched_data\'];
-EMG_processing_path = [main_project_folder, '\Code\Matlab\data_processing\EMG_processing'];
+if isempty(cfg.raw)
+    error(['This stage reads per-subject intermediates that are not ' ...
+           'shipped with the repository. Set cfg.raw in ' ...
+           'config/ansymb_config.m to your copy of the dataset.']);
+end
 
-output_root = fullfile(EMG_processing_path, 'structured_EMG_data_rebuilt');
+epoched_data_path = cfg.trialsInfo;
+output_root       = cfg.structuredEMGRebuilt;
 if ~isfolder(output_root)
     mkdir(output_root);
 end

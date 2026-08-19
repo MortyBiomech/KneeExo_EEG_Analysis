@@ -1,20 +1,29 @@
 function stats = create_stats()
 
-    mlt_clst_path = ['D:\Morteza\MyProjects\ANSYMB2024\data\7_STUDY', ...
-    '\Epoched_data\multiple_clustering\'];
-    eeglab_path = 'D:\Morteza\Toolboxes\EEGLAB\eeglab2025.1.0';
-    curr_path = ['D:\Morteza\MyProjects\ANSYMB2024\Code\Matlab\' ...
-        'data_processing\Group_Level_PostProcessing\' ...
-        'Final_paper_plot_generation\_NHB\' ...
-        'sPCA_denoising_of_TF_data\permutation_based_TF_ROIs'];
+    % Put config on the MATLAB path first: addpath('config') -- see README.
+    cfg = ansymb_config();
+    addpath(genpath(cfg.code));
 
-    cd(eeglab_path)
+    if isempty(cfg.raw)
+        error(['This function reads the ROI STUDY files, which are not ' ...
+               'shipped with the repository. Set cfg.raw in ' ...
+               'config/ansymb_config.m.']);
+    end
+    if isempty(cfg.eeglab)
+        error(['EEGLAB was not found. Add it to the MATLAB path, or set ' ...
+               'cfg.eeglab in config/ansymb_config.m.']);
+    end
+
+    mlt_clst_path = fullfile(cfg.study, 'Epoched_data', 'multiple_clustering');
+    eeglab_path   = cfg.eeglab;
+    curr_path     = fileparts(mfilename('fullpath'));
+
+    addpath(eeglab_path);
     eeglab
-    cd(curr_path)
 
+    % Each ROI STUDY lives in a folder named after the file, minus '.study'.
     STUDY_File_Name = 'Right_Prim_Motor.study';
-    STUDY_File_Path = strcat(mlt_clst_path, STUDY_File_Name);
-    STUDY_File_Path = STUDY_File_Path(1:end-6);
+    STUDY_File_Path = fullfile(mlt_clst_path, erase(STUDY_File_Name, '.study'));
 
    
     [STUDY ALLEEG] = pop_loadstudy('filename', STUDY_File_Name, ...

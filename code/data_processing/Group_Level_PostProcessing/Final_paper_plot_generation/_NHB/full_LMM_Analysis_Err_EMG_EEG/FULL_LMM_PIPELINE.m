@@ -24,19 +24,26 @@
 
 clear; clc;
 
-main_project_path = 'D:\Morteza\MyProjects\ANSYMB2024\';
-addpath(genpath([main_project_path, 'Code']));
+% Everything comes from the repository config, so this runs from a fresh
+% clone. Put config on the path first:  addpath('config')  -- see README.
+% NOTE: this script uses a variable named `cfg` for its own LMM options
+% (cfg.eegIndexName, cfg.outDir, cfg.condVarName, ...). The repository path
+% config is therefore held in `repoCfg` here, to avoid clobbering it.
+repoCfg = ansymb_config();
+addpath(genpath(repoCfg.code));
 
-data_path = 'D:\Morteza\MyProjects\ANSYMB2024\data\';
-icatimef_path = [data_path, '5_single-subject-EEG-analysis\' ...
-    'timewarp_test\Epoched_data'];
-Code_path = 'D:\Morteza\MyProjects\ANSYMB2024\Code\Matlab\data_processing\';
-NHB_path = [Code_path, 'Group_Level_PostProcessing\' ...
-    'Final_paper_plot_generation\_NHB\'];
-behavior_path = [NHB_path, 'behavioural_results'];
-eeg_path = [NHB_path, 'manual_TF_outlier_removal'];
+current_path = fileparts(mfilename('fullpath'));   % this script's folder
 
-current_path = [NHB_path, 'full_LMM_Analysis_Err_EMG_EEG'];
+% behavior_table.mat, EEG_features.mat and EEG_features_wholeBrain.mat are
+% all shipped derived tables, so both loaders point at data/derived.
+behavior_path = repoCfg.derived;
+eeg_path      = repoCfg.derived;
+
+if isempty(repoCfg.raw)
+    icatimef_path = '';
+else
+    icatimef_path = fullfile(repoCfg.singleSubj, 'timewarp_test', 'Epoched_data');
+end
 
 
 

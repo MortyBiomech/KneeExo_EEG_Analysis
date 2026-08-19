@@ -1,13 +1,26 @@
 clc
 clear
 
-%% Add and Define Necessary Paths
-addpath(genpath('D:\Morteza\MyProjects\ANSYMB2024')); % main folder containing all codes and data
-addpath(genpath('D:\Morteza\LSL\xdf-Matlab-master')); % required for loading the XDF files.
+%% Paths
+% Everything comes from the repository config, so this runs from a fresh
+% clone. Put config on the path first:  addpath('config')  -- see README.
+cfg = ansymb_config();
+addpath(genpath(cfg.code));
 
-% Change path to the directory on your PC which raw XDF files are stored:
-data_path = 'D:\Morteza\MyProjects\ANSYMB2024\data\';
-rawdata_path = [data_path, '0_source_data\'];
+if isempty(cfg.raw)
+    error(['This stage reads the raw XDF recordings, which are not ' ...
+           'shipped with the repository. Set cfg.raw in ' ...
+           'config/ansymb_config.m.']);
+end
+if isempty(cfg.xdf)
+    error(['xdf-Matlab was not found. Add it to the MATLAB path, or set ' ...
+           'cfg.xdf in config/ansymb_config.m.']);
+end
+addpath(genpath(cfg.xdf));
+
+% Downstream helpers concatenate onto these, so keep the trailing separator.
+data_path    = [cfg.raw, filesep];
+rawdata_path = [cfg.source, filesep];
 
 
 %% All signals from all sessions concatenated (it takes time!)

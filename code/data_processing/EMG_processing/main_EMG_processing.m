@@ -1,13 +1,21 @@
 clc
 clear
 
-%% Add and Define Necessary Paths
-main_project_folder = 'D:\Morteza\MyProjects\ANSYMB2024';
-addpath(genpath(main_project_folder)); % main folder containing all codes and data
+%% Paths
+% Everything comes from the repository config, so this runs from a fresh
+% clone. Put config on the path first:  addpath('config')  -- see README.
+cfg = ansymb_config();
+addpath(genpath(cfg.code));
 
-data_path = 'D:\Morteza\MyProjects\ANSYMB2024\data\';
-epoched_data_path = [data_path, '6_Trials_Info_and_Epoched_data\'];
-EMG_processing_path = [main_project_folder, '\Code\Matlab\data_processing\EMG_processing'];
+if isempty(cfg.raw)
+    error(['This stage reads the recorded and intermediate data, which is ' ...
+           'not shipped with the repository. Set cfg.raw in ' ...
+           'config/ansymb_config.m to your copy of the dataset.']);
+end
+
+epoched_data_path   = cfg.trialsInfo;
+% Per-subject EMG intermediates now live with the data, not in the code tree.
+EMG_processing_path = cfg.raw;
 
 
 %% Load dataset

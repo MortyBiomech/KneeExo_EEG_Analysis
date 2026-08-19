@@ -23,18 +23,21 @@ clear; clc;
 
 % All paths come from the repository config, so this runs from a fresh clone.
 % It must be on the MATLAB path first:   addpath('config')   -- see README.
-cfg = ansymb_config();
-addpath(genpath(cfg.code));
+% NOTE: this script uses a variable named `cfg` for its own LMM options
+% (cfg.eegIndexName, cfg.outDir, cfg.condVarName, ...). The repository path
+% config is therefore held in `repoCfg` here, to avoid clobbering it.
+repoCfg = ansymb_config();
+addpath(genpath(repoCfg.code));
 
 current_path  = fileparts(mfilename('fullpath'));
-behavior_path = cfg.derived;   % behavior_table.mat
-eeg_path      = cfg.derived;   % EEG_features_wholeBrain.mat
+behavior_path = repoCfg.derived;   % behavior_table.mat
+eeg_path      = repoCfg.derived;   % EEG_features_wholeBrain.mat
 
 % Only needed if re-deriving the EEG features from the single-subject
 % time-frequency files, which are not distributed with this repository.
 icatimef_path = '';
-if ~isempty(cfg.raw)
-    icatimef_path = fullfile(cfg.singleSubj, 'timewarp_test', 'Epoched_data');
+if ~isempty(repoCfg.raw)
+    icatimef_path = fullfile(repoCfg.singleSubj, 'timewarp_test', 'Epoched_data');
 end
 
 
