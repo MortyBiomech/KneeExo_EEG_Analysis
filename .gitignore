@@ -1,0 +1,32 @@
+# MATLAB
+*.asv
+*.m~
+*.autosave
+slprj/
+codegen/
+
+# Figures produced by running the analyses
+figures/
+
+# Large data that must never enter the repository.
+# Raw recordings, EEGLAB sets and multi-gigabyte intermediates live outside the
+# repo; point ansymb_config at them via cfg.raw.
+*.xdf
+*.set
+*.fdt
+*.icatimef
+*.study
+
+# The derived tables in data/derived/ ARE tracked on purpose - they are what
+# makes the figures reproducible without the raw data. They are whitelisted
+# below after the blanket ignore of data/.
+data/*
+!data/derived/
+data/derived/*
+!data/derived/*.mat
+!data/derived/MANIFEST.csv
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
