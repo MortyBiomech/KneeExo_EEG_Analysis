@@ -20,12 +20,13 @@ clear
 %    the reader can see the decision for every bound, which is honest; adopting
 %    whichever bound happens to clear the observed interval is not.
 
-%% Add paths
-current_path = ['D:\Morteza\MyProjects\ANSYMB2024\Code\Matlab\data_processing\', ...
-    'Group_Level_PostProcessing\Final_paper_plot_generation\_NHB\behavioural_results\'];
-error_data_path = ['D:\Morteza\MyProjects\ANSYMB2024\Code\Matlab\data_processing\', ...
-    'Group_Level_PostProcessing\Final_paper_plot_generation\Tracking_error_across_cycle\'];
-addpath(current_path);
+%% Paths
+% All paths come from the repository config, so this runs from a fresh clone.
+% It must be on the MATLAB path first:   addpath('config')   -- see README.
+cfg = ansymb_config();
+current_path    = fileparts(mfilename('fullpath'));
+error_data_path = cfg.derived;
+addpath(current_path);   % tost_paired, bayesFactorPairedT live alongside
 
 % -------------------------------------------------------------------------
 % PRE-SPECIFY THE EQUIVALENCE BOUND, IN DEGREES, BEFORE READING THE RESULT.
@@ -134,7 +135,7 @@ fprintf('\nmean RMSE across conditions: %.2f deg\n', mean(rmse(:)));
 fprintf('bound of %.2f deg is %.1f%% of typical tracking error\n', ...
     EQUIV_BOUND_DEG, 100*EQUIV_BOUND_DEG/mean(rmse(:)));
 
-save(fullfile(current_path, 'tracking_error_equivalence_results.mat'), ...
+save(fullfile(cfg.figures, 'tracking_error_equivalence_results.mat'), ...
     'results', 'rmse', 'subject_list', 'EQUIV_BOUND_DEG', 'ALPHA', 'pFried', 'tbl');
 
 

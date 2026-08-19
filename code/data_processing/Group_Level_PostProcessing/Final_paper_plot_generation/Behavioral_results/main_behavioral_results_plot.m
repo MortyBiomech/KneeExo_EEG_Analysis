@@ -2,17 +2,25 @@ clc
 clear
 
 
-%% Add paths
-addpath(genpath('D:\Morteza\MyProjects\ANSYMB2024\Code'))
-data_path = 'D:\Morteza\MyProjects\ANSYMB2024\data\';
-epoched_data_path = [data_path, '6_Trials_Info_and_Epoched_data\'];
-current_path = ['D:\Morteza\MyProjects\ANSYMB2024\Code\Matlab', ...
-    '\data_processing\Group_Level_PostProcessing\', ...
-    'Final_paper_plot_generation\Behavioral_results'];
+%% Paths
+% All paths come from the repository config, so this runs from a fresh clone.
+% It must be on the MATLAB path first:   addpath('config')   -- see README.
+cfg = ansymb_config();
+current_path = fileparts(mfilename('fullpath'));
+
+% Stage 1 re-derives the tracking-error and score structures from the raw
+% epoched recordings, which are not distributed with this repository. It runs
+% only if cfg.raw points at the dataset. Otherwise the shipped derived tables
+% are loaded directly at "Load saved data" below, which is all the figure needs.
+run_from_raw = ~isempty(cfg.raw);
+if run_from_raw
+    epoched_data_path = [cfg.trialsInfo, filesep];
+end
 
 
 %% Main Loop
 subject_list = 5:18;
+if run_from_raw
 Subject_Tracking_Error = cell(length(subject_list), 1);
 Subject_Score = cell(length(subject_list), 1);
 for sub = 1:length(subject_list)
@@ -106,16 +114,19 @@ for sub = 1:length(subject_list)
                                 'Whole_Exp', all_scores);
 
 end
+end  % if run_from_raw
 
 
 %% Save the tracking error and subjective scores structures
-save(fullfile(current_path, 'Tracking_Errors'), 'Subject_Tracking_Error')
-save(fullfile(current_path, 'Subjective_Scores'), 'Subject_Score')
+if run_from_raw
+    save(fullfile(cfg.derived, 'Tracking_Errors'), 'Subject_Tracking_Error')
+    save(fullfile(cfg.derived, 'Subjective_Scores'), 'Subject_Score')
+end
 
 
 %% Load saved data
-load("Tracking_Errors")
-load("Subjective_Scores")
+load(fullfile(cfg.derived, 'Tracking_Errors.mat'))
+load(fullfile(cfg.derived, 'Subjective_Scores.mat'))
 
 
 %% Remove outliers in the tracking error values

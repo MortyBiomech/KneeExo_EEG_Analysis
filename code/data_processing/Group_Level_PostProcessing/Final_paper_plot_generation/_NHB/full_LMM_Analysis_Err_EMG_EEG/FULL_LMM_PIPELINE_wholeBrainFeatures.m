@@ -21,19 +21,21 @@
 
 clear; clc;
 
-main_project_path = 'D:\Morteza\MyProjects\ANSYMB2024\';
-addpath(genpath([main_project_path, 'Code']));
+% All paths come from the repository config, so this runs from a fresh clone.
+% It must be on the MATLAB path first:   addpath('config')   -- see README.
+cfg = ansymb_config();
+addpath(genpath(cfg.code));
 
-data_path = 'D:\Morteza\MyProjects\ANSYMB2024\data\';
-icatimef_path = [data_path, '5_single-subject-EEG-analysis\' ...
-    'timewarp_test\Epoched_data'];
-Code_path = 'D:\Morteza\MyProjects\ANSYMB2024\Code\Matlab\data_processing\';
-NHB_path = [Code_path, 'Group_Level_PostProcessing\' ...
-    'Final_paper_plot_generation\_NHB\'];
-behavior_path = [NHB_path, 'behavioural_results'];
-eeg_path = [NHB_path, 'manual_TF_outlier_removal'];
+current_path  = fileparts(mfilename('fullpath'));
+behavior_path = cfg.derived;   % behavior_table.mat
+eeg_path      = cfg.derived;   % EEG_features_wholeBrain.mat
 
-current_path = [NHB_path, 'full_LMM_Analysis_Err_EMG_EEG'];
+% Only needed if re-deriving the EEG features from the single-subject
+% time-frequency files, which are not distributed with this repository.
+icatimef_path = '';
+if ~isempty(cfg.raw)
+    icatimef_path = fullfile(cfg.singleSubj, 'timewarp_test', 'Epoched_data');
+end
 
 
 
