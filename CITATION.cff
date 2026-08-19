@@ -1,0 +1,35 @@
+cff-version: 1.2.0
+title: >-
+  Analysis code for "Cortical and neuromuscular correlates of graded physical
+  demand during knee-exoskeleton-assisted tracking"
+message: If you use this software, please cite both the software and the paper.
+type: software
+authors:
+  - given-names: Morteza
+    family-names: Khosrotabar
+    email: mkhosrotabar@gmail.com
+    # orcid: 'https://orcid.org/0000-0000-0000-0000'   # TODO add
+    # affiliation: ''                                   # TODO add
+license: MIT
+repository-code: 'https://github.com/MortyBiomech/KneeExo_EEG_Analysis'  # TODO confirm
+keywords:
+  - mobile brain/body imaging
+  - MoBI
+  - EEG
+  - EMG
+  - exoskeleton
+  - pneumatic artificial muscle
+  - motor control
+  - perceived exertion
+# Uncomment and complete once the paper is published, and add the Zenodo DOI
+# for this repository under identifiers.
+#
+# preferred-citation:
+#   type: article
+#   title: ''
+#   authors:
+#     - given-names: Morteza
+#       family-names: Khosrotabar
+#   journal: ''
+#   year: 2026
+#   doi: ''
