@@ -20,7 +20,7 @@ if ~isempty(cfg.raw)
     exp_analysis_path   = fullfile(cfg.raw, '9_EXP_Analysis', filesep);
 end
 
-%processing_path = 'D:\Morteza\MyProjects\ANSYMB2024\Code\Matlab\data_processing\';
+%processing_path = fullfile(cfg.code, 'data_processing');
 %rawdata_path = [data_path, '0_source_data\'];
 %rawEEGLAB_path = [data_path, '2_raw-EEGLAB\']; 
 %epoched_EEG_path = [data_path, '5_single-subject-EEG-analysis\', ...

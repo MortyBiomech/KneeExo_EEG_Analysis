@@ -2,37 +2,54 @@ clc
 clear
 
 
-%% Add paths
-addpath(genpath('D:\Morteza\MyProjects\ANSYMB2024\Code'))
-data_path = 'D:\Morteza\MyProjects\ANSYMB2024\data\';
-epoched_data_path = [data_path, '6_Trials_Info_and_Epoched_data\'];
-current_path = ['D:\Morteza\MyProjects\ANSYMB2024\Code\Matlab', ...
-    '\data_processing\Group_Level_PostProcessing\', ...
-    'Final_paper_plot_generation\Tracking_error_across_cycle'];
+%% Paths
+% Everything comes from the repository config, so this runs from a fresh
+% clone. Put config on the path first:  addpath('config')  -- see README.
+cfg = ansymb_config();
+addpath(genpath(cfg.code));
+
+current_path = fileparts(mfilename('fullpath'));   % this script's folder
+derived_path = cfg.derived;                        % the shipped tables
+
+% The first section rebuilds Subjects_Tracking_Error.mat from the epoched
+% data, which is too large to ship. Everything after it reads that file, so
+% with cfg.raw left empty the rest of the script still runs from the copy in
+% data/derived.
+if isempty(cfg.raw)
+    epoched_data_path = '';
+else
+    epoched_data_path = cfg.trialsInfo;
+end
 
 
-%% Load the tracking errors and scores 
+%% Load the tracking errors and scores
 subject_list = 5:18;
+
+if isempty(epoched_data_path)
+    error(['This section rebuilds Subjects_Tracking_Error.mat from the ' ...
+           'epoched data, which is not shipped with the repository. Set ' ...
+           'cfg.raw in config/ansymb_config.m, or skip to the next section ' ...
+           'and load the copy in data/derived.']);
+end
 
 inner_struct = struct('time', [], 'tracking_error', [], 'pressure', [], ...
     'trial', [], 'score', [], 'events', []);
-Subject_Tracking_Error = repmat({inner_struct}, length(subject_list), 1); 
+Subject_Tracking_Error = repmat({inner_struct}, length(subject_list), 1);
 
 for sub = 1:length(subject_list)
-    
+
     %% Load the epoched experimental data
-    folderName = [epoched_data_path, 'sub-', ...
-        num2str(subject_list(sub))];
-    cd(folderName)
+    folderName = fullfile(epoched_data_path, ...
+        ['sub-', num2str(subject_list(sub))]);
     disp(['Loading data from subject ', num2str(subject_list(sub)), ' ...'])
-    load Epochs_FlextoFlex_based.mat
-    load Trials_Info.mat
+    load(fullfile(folderName, 'Epochs_FlextoFlex_based.mat'), ...
+        'Epochs_FlextoFlex_based');
+    load(fullfile(folderName, 'Trials_Info.mat'), 'Trials_Info');
     % extract the EXP_stream
     EXP_data = cellfun(@(x) x.EXP_stream, Epochs_FlextoFlex_based, ...
         'UniformOutput', false);
     % free up the memory
     clear Epochs_FlextoFlex_based
-    cd(current_path)
 
     %% Store the tracking error per epoch 
     for trial = 1:length(EXP_data)
@@ -98,7 +115,8 @@ end
 
 
 %% Save the data on disc
-save(fullfile(current_path, 'Subjects_Tracking_Error'), 'Subject_Tracking_Error')
+% This is one of the shipped derived tables, so it is rewritten in place.
+save(fullfile(derived_path, 'Subjects_Tracking_Error'), 'Subject_Tracking_Error')
 
 
 %% Time-warping the tracking error data

@@ -2,14 +2,26 @@ clc
 clear
 
 
-%% Add paths
-addpath(genpath('D:\Morteza\MyProjects\ANSYMB2024\Code'))
-data_path = 'D:\Morteza\MyProjects\ANSYMB2024\data\';
-epoched_data_path = [data_path, '6_Trials_Info_and_Epoched_data\'];
-force_sensor_data_path = [data_path, '9_EXP_Analysis\'];
-current_path = ['D:\Morteza\MyProjects\ANSYMB2024\Code\Matlab', ...
-    '\data_processing\Group_Level_PostProcessing\', ...
-    'Final_paper_plot_generation\PAM_engagement_moments'];
+%% Paths
+% Everything comes from the repository config, so this runs from a fresh
+% clone. Put config on the path first:  addpath('config')  -- see README.
+cfg = ansymb_config();
+addpath(genpath(cfg.code));
+
+current_path = fileparts(mfilename('fullpath'));   % this script's folder
+derived_path = cfg.derived;                        % the shipped tables
+
+% The first section rebuilds Subjects_Force_Angle.mat from the epoched data
+% and the calibrated force sensor recordings, neither of which is shipped.
+% Everything after it reads those tables from data/derived, so with cfg.raw
+% left empty the rest of the script still runs.
+if isempty(cfg.raw)
+    epoched_data_path      = '';
+    force_sensor_data_path = '';
+else
+    epoched_data_path      = cfg.trialsInfo;
+    force_sensor_data_path = cfg.expAnalysis;
+end
 
 
 %% Load the force sensor data and knee angle
@@ -30,29 +42,26 @@ Force_Angle = repmat({inner_struct}, length(subject_list), 1);
 for sub = 1:length(subject_list)
     
     %% Load the epoched experimental data
-    folderName = [epoched_data_path, 'sub-', ...
-        num2str(subject_list(sub))];
-    cd(folderName)
+    folderName = fullfile(epoched_data_path, ...
+        ['sub-', num2str(subject_list(sub))]);
     disp(['Loading EXP data from subject ', num2str(subject_list(sub)), ' ...'])
-    load Epochs_FlextoFlex_based.mat
-    load Trials_Info.mat
+    load(fullfile(folderName, 'Epochs_FlextoFlex_based.mat'), ...
+        'Epochs_FlextoFlex_based');
+    load(fullfile(folderName, 'Trials_Info.mat'), 'Trials_Info');
     % extract the EXP_stream
     EXP_data = cellfun(@(x) x.EXP_stream, Epochs_FlextoFlex_based, ...
         'UniformOutput', false);
     % free up the memory
     clear Epochs_FlextoFlex_based
-    cd(current_path)
 
 
     %% Load the calibrated force sensor data (not timewarped)
-    folderName = [force_sensor_data_path, 'sub-', ...
-        num2str(subject_list(sub))];
-    cd(folderName)
+    folderName = fullfile(force_sensor_data_path, ...
+        ['sub-', num2str(subject_list(sub))]);
     disp(['Loading force sensor data from subject ', ...
         num2str(subject_list(sub)), ' ...'])
-    load calibrated_Force.mat
+    load(fullfile(folderName, 'calibrated_Force.mat'), 'calibrated_Force');
     force = calibrated_Force.F_cal;
-    cd(current_path)
 
 
     %% Store the force and knee angle per epoch 
@@ -122,7 +131,7 @@ Subject_Force_Angle(:, 2) = Force_Angle;
 
 
 %% Save the data
-save(fullfile(current_path, 'Subjects_Force_Angle'), 'Subject_Force_Angle')
+save(fullfile(derived_path, 'Subjects_Force_Angle'), 'Subject_Force_Angle')
 
 
 %% Time-warping the force and angle data
@@ -245,7 +254,7 @@ end
 
 
 %% Save the data
-save(fullfile(current_path, 'Subjects_Force_Angle_warped'), ...
+save(fullfile(derived_path, 'Subjects_Force_Angle_warped'), ...
     'Subject_Force_Angle_warped')
 
 

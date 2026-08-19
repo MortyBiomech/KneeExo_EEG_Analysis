@@ -1,5 +1,14 @@
-load(['D:\Morteza\MyProjects\ANSYMB2024\data\' ...
-    '6_Trials_Info_and_Epoched_data\sub-12\Epochs_Trial_based.mat']);
+% Put config on the MATLAB path first:  addpath('config')  -- see README.
+% NOT SHIPPED: this panel plots one raw EEG trace, so it needs the epoched
+% data rather than a derived table. Set cfg.raw to your copy of the dataset.
+cfg = ansymb_config();
+if isempty(cfg.raw)
+    error(['This panel reads the epoched EEG for sub-12, which is not ' ...
+           'shipped with the repository. Set cfg.raw in ' ...
+           'config/ansymb_config.m.']);
+end
+load(fullfile(cfg.trialsInfo, 'sub-12', 'Epochs_Trial_based.mat'), ...
+    'Epochs_Trial_based');
 
 
 %% 

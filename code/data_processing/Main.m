@@ -1,19 +1,36 @@
 clc
 clear
 
-%% Change these paths with respect to your system
-study_path = 'D:\Morteza\MyProjects\ANSYMB2024\data\';
-processing_path = 'D:\Morteza\MyProjects\ANSYMB2024\Code\Matlab\data_processing\';
-addpath(genpath('D:\Morteza\MyProjects\ANSYMB2024'))
-addpath(genpath('D:\Morteza\LSL\xdf-Matlab-master'))
+%% Paths
+% Everything comes from the repository config, so this runs from a fresh
+% clone. Put config on the path first:  addpath('config')  -- see README.
+cfg = ansymb_config();
+addpath(genpath(cfg.code));
 
-%% Add important paths
-addpath('D:\Morteza\Toolboxes\Fieldtrip\fieldtrip-20231127')
-addpath('D:\Morteza\Toolboxes\Fieldtrip\fieldtrip-20231127\fileio')
+if isempty(cfg.raw)
+    error(['This is the import and preprocessing stage: it reads the raw ' ...
+           'XDF recordings, which are not shipped with the repository. ' ...
+           'Set cfg.raw in config/ansymb_config.m.']);
+end
+
+% BeMoBIL and the older helpers expect a trailing separator on these two.
+study_path      = [cfg.raw, filesep];
+processing_path = [fullfile(cfg.code, 'data_processing'), filesep];
+
+% xdf-Matlab is needed to read the recordings; FieldTrip for dipole fitting.
+if isempty(cfg.xdf)
+    error(['xdf-Matlab was not found. Add it to the MATLAB path, or set ' ...
+           'cfg.xdf in config/ansymb_config.m.']);
+end
+addpath(genpath(cfg.xdf));
+if ~isempty(cfg.fieldtrip)
+    addpath(cfg.fieldtrip);
+    addpath(fullfile(cfg.fieldtrip, 'fileio'));
+end
 
 %% All signals from all sessions concatenated (it takes time!)
 subject_id = 17;
-rawdata_path = [study_path, '0_source_data\'];
+rawdata_path = [cfg.source, filesep];
 output = runs_concatenated(subject_id, rawdata_path);
 
 All_EEG_time = output.All_EEG_time;
@@ -255,4 +272,4 @@ subject
 disp('PROCESSING DONE! YOU CAN CLOSE THE WINDOW NOW!')
 
 
-% rmpath(genpath('D:\Morteza\MyProjects\ANSYMB2024'))
+% rmpath(genpath(cfg.code))

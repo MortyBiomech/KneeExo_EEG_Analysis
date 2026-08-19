@@ -2,32 +2,35 @@ clc
 clear
 
 
-%% Add necessary paths
-main_project_path = 'D:\Morteza\MyProjects\ANSYMB2024\';
+%% Paths
+% Everything comes from the repository config, so this runs from a fresh
+% clone. Put config on the path first:  addpath('config')  -- see README.
+cfg = ansymb_config();
+addpath(genpath(cfg.code));
 
-addpath(genpath([main_project_path, 'Code']));
-addpath(genpath([main_project_path, 'data\7_STUDY\Epoched_data']));
+current_path = fileparts(mfilename('fullpath'));   % this script's folder
+derived_path = cfg.derived;                        % the shipped tables
 
-data_path         = [main_project_path, 'data\'];
-Code_path         = [main_project_path, 'Code\Matlab\data_processing\'];
-all_STUDY_PATH    = [data_path, '7_STUDY\Epoched_data\', ...
-                        'multiple_clustering\'];
+% Stages that need the full dataset. Left empty when cfg.raw is unset; the
+% sections that draw the manuscript figure read from data/derived and from
+% the ersp_results written by ersp_analysis, so they run without them.
+if isempty(cfg.raw)
+    all_STUDY_PATH    = '';
+    icatimef_path     = '';
+    epoched_data_path = '';
+    ersp_data_path    = '';
+else
+    addpath(genpath(fullfile(cfg.study, 'Epoched_data')));
+    all_STUDY_PATH    = fullfile(cfg.study, 'Epoched_data', 'multiple_clustering');
+    icatimef_path     = fullfile(cfg.singleSubj, 'timewarp_test', 'Epoched_data');
+    epoched_data_path = cfg.trialsInfo;
+    ersp_data_path    = fullfile(cfg.study, 'Epoched_data', 'Final_figures', ...
+                                 'ERSP', 'Three Pressure Conditions', ...
+                                 'p 0.01 ersp results');
+end
 
-icatimef_path     = [data_path, '5_single-subject-EEG-analysis\', ...
-                        'timewarp_test\Epoched_data'];
-epoched_data_path = [data_path, '6_Trials_Info_and_Epoched_data\'];
-ersp_data_path    = [data_path, '7_STUDY\Epoched_data\Final_figures', ...
-                        '\ERSP\Three Pressure Conditions\', ...
-                        'p 0.01 ersp results\'];
-Subject_ICs_in_clusters_path = [Code_path, ...
-    'Group_Level_PostProcessing\Final_paper_plot_generation\', ...
-    'Detailed_Analysis_on_TF_regions\', ...
-    'extracting Subjects and ICs in the brain clusters'];
-
-current_path = ['D:\Morteza\MyProjects\ANSYMB2024\Code\Matlab', ...
-    '\data_processing\Group_Level_PostProcessing\', ...
-    'Final_paper_plot_generation\', ...
-    '_NHB\manual_TF_outlier_removal'];
+% Subjects_ICs_in_clusters.mat is one of the shipped derived tables.
+Subject_ICs_in_clusters_path = derived_path;
 
 titles = {'Low Pressure', 'Medium Pressure', 'High Pressure'};
 studyNames = {'Left Dorsal ACC', 'Left Parieto Occipital', ...
@@ -42,17 +45,20 @@ cols = [P1_color; P3_color; P6_color];
 
 
 % add eeglab to the path
-eeglabPath = 'D:\Morteza\Toolboxes\EEGLAB\eeglab2025.1.0';
-cd(eeglabPath)
+eeglabPath = cfg.eeglab;
+if isempty(eeglabPath)
+    error(['EEGLAB was not found. Add it to the MATLAB path, or set ' ...
+           'cfg.eeglab in config/ansymb_config.m.']);
+end
+addpath(eeglabPath);
 eeglab
-cd(current_path)
 
 %% ==============================================
 %  Create "stats" parameter for std_stat function
 %  ==============================================
 % stats = create_stats();
 % Load "stats" structure
-load("stats.mat")
+load(fullfile(derived_path, "stats.mat"), "stats")
 
 
 
@@ -61,9 +67,8 @@ load("stats.mat")
 %  ========================================================================
 
 % load the subject-IC pairs for our STUDY
-cd(Subject_ICs_in_clusters_path)
-load("Subjects_ICs_in_clusters.mat")
-cd(current_path)
+load(fullfile(Subject_ICs_in_clusters_path, ...
+    "Subjects_ICs_in_clusters.mat"), "Subjects_ICs_in_clusters");
 
 for study = 8 % [4, 6, 8] % look at the studyNames 
 
@@ -84,14 +89,14 @@ for study = 8 % [4, 6, 8] % look at the studyNames
     allersp = cell(length(Subjects_sorted), 3);
     for sub = 1:length(Subjects_sorted)
 
-        cd(icatimef_path)
         fileExt = '.icatimef';
         
         % load icatime (just load the com_X, times, freqs)
         fileBaseName = ['S', num2str(Subjects_sorted(sub))];
         chanList = ['comp', num2str(ICs_sorted(sub))];
         disp(['Loading S', num2str(Subjects_sorted(sub)),'.icatimef ...']);
-        icatimef = load('-mat', [ fileBaseName fileExt ], chanList, ...
+        icatimef = load('-mat', ...
+            fullfile(icatimef_path, [fileBaseName fileExt]), chanList, ...
             'times', 'freqs', 'trialinfo', 'parameters');
         trialinfo = icatimef.trialinfo;
         ic = icatimef.(['comp', num2str(ICs_sorted(sub))]);
@@ -103,7 +108,6 @@ for study = 8 % [4, 6, 8] % look at the studyNames
         idx_to_keep = times < timewarpms(end);
         ic = ic(:, idx_to_keep, :);
         new_times = 100*(times(idx_to_keep)/timewarpms(end));
-        cd(current_path)
 
         
         % unique trials
@@ -604,8 +608,10 @@ for study = 8 % [4, 6, 8] % look at the studyNames
     %%
     studyName = studyNames{study};
     figname = studyName;
-    savePath = [current_path, '\figures\final_figure_paper\'];
-    if ~exist("savePath", "dir")
+    savePath = fullfile(cfg.figures, 'final_figure_paper');
+    % NB: the original tested exist("savePath","dir") -- the literal string,
+    % not the variable -- so the check never did anything.
+    if ~isfolder(savePath)
         mkdir(savePath)
     end
     savethisfig(gcf, strcat(figname,'.png'), savePath,'png')

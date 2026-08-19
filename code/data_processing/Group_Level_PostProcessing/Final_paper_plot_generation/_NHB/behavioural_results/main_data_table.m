@@ -1,23 +1,26 @@
 clc
 clear
 
-%% Add paths
-addpath(genpath('D:\Morteza\MyProjects\ANSYMB2024\Code'))
-data_path = 'D:\Morteza\MyProjects\ANSYMB2024\data\';
-epoched_data_path = [data_path, '6_Trials_Info_and_Epoched_data\'];
+%% Paths
+% Everything comes from the repository config, so this runs from a fresh
+% clone. Put config on the path first:  addpath('config')  -- see README.
+cfg = ansymb_config();
+addpath(genpath(cfg.code));
 
-final_EMG_data_path = [...
-'D:\Morteza\MyProjects\ANSYMB2024\Code\Matlab\data_processing', ...
-'\Group_Level_PostProcessing\Final_paper_plot_generation\', ...
-'Detailed_Analysis_on_EMG\'];
-final_Error_data_path = [
-    'D:\Morteza\MyProjects\ANSYMB2024\Code\Matlab\data_processing\', ...
-    'Group_Level_PostProcessing\Final_paper_plot_generation\', ...
-    'Tracking_error_across_cycle\'];
+current_path = fileparts(mfilename('fullpath'));   % this script's folder
+derived_path = cfg.derived;                        % the shipped tables
 
-current_path = ['D:\Morteza\MyProjects\ANSYMB2024\Code\Matlab', ...
-    '\data_processing\Group_Level_PostProcessing\', ...
-    'Final_paper_plot_generation\_NHB\behavioural_results\'];
+% Both inputs are shipped derived tables: EMG_Data_timewarped.mat from
+% Detailed_Analysis_on_EMG, Subjects_Tracking_Error.mat from
+% Tracking_error_across_cycle.
+final_EMG_data_path   = derived_path;
+final_Error_data_path = derived_path;
+
+if isempty(cfg.raw)
+    epoched_data_path = '';
+else
+    epoched_data_path = cfg.trialsInfo;
+end
 
 P1_color = [1, 115, 178]/255;
 P3_color = [222, 143, 5]/255;
@@ -30,9 +33,8 @@ EMG_subjects = load_emg_data(final_EMG_data_path, current_path);
 
 
 %% Load and manage tracking error data for the final table
-cd(final_Error_data_path)
-load("Subjects_Tracking_Error.mat")
-cd(current_path)
+load(fullfile(final_Error_data_path, "Subjects_Tracking_Error.mat"), ...
+    "Subject_Tracking_Error");
 
 % ------------------------------------------------------------------------
 % Because the outliers were removed separately from EMG and tracking error
@@ -139,7 +141,7 @@ T.Pressure  = categorical(T.Pressure);
 
 
 % save the Behaviour table
-save([current_path, 'behavior_table.mat'], "T");
+save(fullfile(derived_path, 'behavior_table.mat'), "T");
 
 
 

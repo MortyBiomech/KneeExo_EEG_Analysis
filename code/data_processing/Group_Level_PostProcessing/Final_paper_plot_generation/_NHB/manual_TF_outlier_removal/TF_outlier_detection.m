@@ -2,32 +2,33 @@ clc
 clear
 
 
-%% Add necessary paths
-main_project_path = 'D:\Morteza\MyProjects\ANSYMB2024\';
+%% Paths
+% Everything comes from the repository config, so this runs from a fresh
+% clone. Put config on the path first:  addpath('config')  -- see README.
+cfg = ansymb_config();
+addpath(genpath(cfg.code));
 
-addpath(genpath([main_project_path, 'Code']));
-addpath(genpath([main_project_path, 'data\7_STUDY\Epoched_data']));
+current_path = fileparts(mfilename('fullpath'));   % this script's folder
+derived_path = cfg.derived;                        % the shipped tables
 
-data_path         = [main_project_path, 'data\'];
-Code_path         = [main_project_path, 'Code\Matlab\data_processing\'];
-all_STUDY_PATH    = [data_path, '7_STUDY\Epoched_data\', ...
-                        'multiple_clustering\'];
+% Subjects_ICs_in_clusters.mat is one of the shipped derived tables.
+Subject_ICs_in_clusters_path = derived_path;
 
-icatimef_path     = [data_path, '5_single-subject-EEG-analysis\', ...
-                        'timewarp_test\Epoched_data'];
-epoched_data_path = [data_path, '6_Trials_Info_and_Epoched_data\'];
-ersp_data_path    = [data_path, '7_STUDY\Epoched_data\Final_figures', ...
-                        '\ERSP\Three Pressure Conditions\', ...
-                        'p 0.01 ersp results\'];
-Subject_ICs_in_clusters_path = [Code_path, ...
-    'Group_Level_PostProcessing\Final_paper_plot_generation\', ...
-    'Detailed_Analysis_on_TF_regions\', ...
-    'extracting Subjects and ICs in the brain clusters'];
-
-current_path = ['D:\Morteza\MyProjects\ANSYMB2024\Code\Matlab', ...
-    '\data_processing\Group_Level_PostProcessing\', ...
-    'Final_paper_plot_generation\', ...
-    '_NHB\manual_TF_outlier_removal'];
+% Stages that need the full dataset; empty when cfg.raw is unset.
+if isempty(cfg.raw)
+    icatimef_path     = '';
+    all_STUDY_PATH    = '';
+    epoched_data_path = '';
+    ersp_data_path    = '';
+else
+    addpath(genpath(fullfile(cfg.study, 'Epoched_data')));
+    icatimef_path     = fullfile(cfg.singleSubj, 'timewarp_test', 'Epoched_data');
+    all_STUDY_PATH    = fullfile(cfg.study, 'Epoched_data', 'multiple_clustering');
+    epoched_data_path = cfg.trialsInfo;
+    ersp_data_path    = fullfile(cfg.study, 'Epoched_data', 'Final_figures', ...
+                                 'ERSP', 'Three Pressure Conditions', ...
+                                 'p 0.01 ersp results');
+end
 
 titles = {'Low Pressure', 'Medium Pressure', 'High Pressure'};
 studyNames = {'Left Dorsal ACC', 'Left Parieto Occipital', ...
