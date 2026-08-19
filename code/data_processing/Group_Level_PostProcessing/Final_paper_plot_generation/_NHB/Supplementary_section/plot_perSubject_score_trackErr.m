@@ -3,13 +3,22 @@ clear
 
 
 %% Add paths
-addpath(genpath('D:\Morteza\MyProjects\ANSYMB2024\Code'))
-addpath(genpath('D:\Morteza\LSL\xdf-Matlab-master'));
+% All paths come from the repository config, so this runs from a fresh clone.
+% It must be on the MATLAB path first:   addpath('config')   -- see README.
+cfg = ansymb_config();
+addpath(genpath(cfg.code));
 
-EEGLAB_path = 'D:\Morteza\Toolboxes\EEGLAB\eeglab2026.0.0';
-data_path = 'D:\Morteza\MyProjects\ANSYMB2024\data\';
-trials_epoched_path = [data_path, '6_Trials_Info_and_Epoched_data\'];
-exp_analysis_path = [data_path, '9_EXP_Analysis\'];
+EEGLAB_path = cfg.eeglab;
+current_path = fileparts(mfilename('fullpath'));
+
+% Raw-data paths, only needed to re-derive All_scores_trackErr.mat. The shipped
+% copy in data/derived is what this figure actually plots.
+trials_epoched_path = '';
+exp_analysis_path   = '';
+if ~isempty(cfg.raw)
+    trials_epoched_path = [cfg.trialsInfo, filesep];
+    exp_analysis_path   = fullfile(cfg.raw, '9_EXP_Analysis', filesep);
+end
 
 %processing_path = 'D:\Morteza\MyProjects\ANSYMB2024\Code\Matlab\data_processing\';
 %rawdata_path = [data_path, '0_source_data\'];
@@ -95,7 +104,7 @@ subject_list = 5:18;
 % end
 % save("All_scores_trackErr.mat", "All_scores_trackErr", '-mat');
 
-load("All_scores_trackErr.mat")
+load(fullfile(cfg.derived, 'All_scores_trackErr.mat'))
 
 % change the RMSE to Mean Absolute Error
 
