@@ -18,7 +18,10 @@ angle and force-sensor signals, all captured together via LSL.
 ## What is here
 
 ```
-code/            analysis code, mirroring the original working tree
+code/            analysis code
+  ersp_analysis/ cluster time-frequency analysis (has its own README)
+  shared/        helpers used by more than one analysis
+  data_processing/  the rest, mirroring the original working tree
 config/          ansymb_config.m — every path this analysis needs
 data/derived/    derived tables that regenerate the figures (see below)
 docs/            pipeline notes
@@ -54,7 +57,7 @@ Then run any analysis below. Nothing needs editing for the derived-data path.
 | Fig. 1d — normalised muscle activity by condition | `code/.../Detailed_Analysis_on_EMG/main_EMG_detailed_analysis.m` |
 | Fig. 1e — within-cycle EMG vs PAM engagement | `code/.../PAM_engagement_moments/main_finding_PAM_start_end_engagement.m` |
 | Fig. 1f — mediation of difficulty via effort and error | `code/.../\_NHB/full_LMM_Analysis_Err_EMG_EEG/FULL_LMM_PIPELINE_wholeBrainFeatures.m` |
-| Figs. 2–3 — cluster ERSPs, RM-ANOVA + cluster permutation | `code/.../test_eeglab_way_of_ERSP_PSD/main.m`, then `code/.../\_NHB/manual_TF_outlier_removal/rm_anova_cluster_based.m` and `final_figure_for_paper.m` |
+| Figs. 2–3 — cluster ERSPs, RM-ANOVA + cluster permutation | `code/ersp_analysis/main_ersp_pipeline.m`, then `code/.../\_NHB/manual_TF_outlier_removal/rm_anova_cluster_based.m` and `final_figure_for_paper.m` |
 | Supplementary — per-subject ratings and error | `code/.../\_NHB/Supplementary_section/plot_perSubject_score_trackErr.m` |
 
 Upstream stages, needed only to regenerate the derived tables from raw data:
