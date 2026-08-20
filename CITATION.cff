@@ -11,7 +11,7 @@ authors:
     # orcid: 'https://orcid.org/0000-0000-0000-0000'   # TODO add
     # affiliation: ''                                   # TODO add
 license: MIT
-repository-code: 'https://github.com/MortyBiomech/KneeExo_EEG_Analysis'  # TODO confirm
+repository-code: 'https://github.com/MortyBiomech/KneeExo_EEG_Analysis'
 keywords:
   - mobile brain/body imaging
   - MoBI
