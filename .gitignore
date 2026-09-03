@@ -17,6 +17,10 @@ figures/
 *.icatimef
 *.study
 
+# MATLAB files
+*.mat
+*.asv
+
 # The derived tables in data/derived/ ARE tracked on purpose - they are what
 # makes the figures reproducible without the raw data. They are whitelisted
 # below after the blanket ignore of data/.
