@@ -105,7 +105,7 @@ fprintf('ERSP parameters read from %s\n', icatimefFiles(1).name);
 allResults = struct([]);
 tStart = tic;
 
-for r = 1:numel(p.roiStudyFiles)
+for r = 1%:numel(p.roiStudyFiles)
 
     studyFile = p.roiStudyFiles{r};
     studyName = erase(studyFile, '.study');
@@ -149,3 +149,4 @@ end
 
 fprintf('\nAll ROIs finished in %.1f min.\n', toc(tStart)/60);
 save(fullfile(outputPath, 'ersp_results_all_ROIs.mat'), 'allResults', '-mat');
+

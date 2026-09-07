@@ -38,7 +38,7 @@ function cfg = ansymb_config()
     % too large for a git repository. Point cfg.raw at your download; leave it
     % empty if you are only reproducing figures from the derived tables, which
     % is the common case.
-    cfg.raw = '';    % e.g. 'D:\ANSYMB2024_data'
+    cfg.raw = 'D:\Morteza\MyProjects\ANSYMB2024\data';    
 
     % The folder numbers ARE the pipeline stages; scripts address them by
     % these literal names. Every stage is listed here, whether or not the
