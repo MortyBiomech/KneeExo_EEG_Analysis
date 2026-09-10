@@ -1,8 +1,18 @@
-function report_figure3_stats(data, p, outputPath)
-% REPORT_FIGURE3_STATS  Print every number Figure 3's Results text needs.
+function report_cluster_pair_stats(data, p, outputPath, baseName)
+% REPORT_CLUSTER_PAIR_STATS  Print every number a cluster-pair figure's
+% Results text needs.
 %
-%   REPORT_FIGURE3_STATS(DATA, P)
-%   REPORT_FIGURE3_STATS(DATA, P, OUTPUTPATH)
+%   REPORT_CLUSTER_PAIR_STATS(DATA, P)
+%   REPORT_CLUSTER_PAIR_STATS(DATA, P, OUTPUTPATH)
+%   REPORT_CLUSTER_PAIR_STATS(DATA, P, OUTPUTPATH, BASENAME)
+%
+% Shared by Figure 3 (sensorimotor) and Figure 4 (parieto-occipital), so
+% the two sections' numbers are produced and formatted the same way --
+% which matters here more than usual, because those two sections make
+% opposite claims and a reviewer will compare them directly.
+%
+% BASENAME names the written report ('figure3' -> figure3_stats_report.txt)
+% and defaults to 'figure3'.
 %
 % DATA is LOAD_FIGURE3_DATA's output -- the same variable
 % PLOT_FIGURE3_PRIMARY_MOTOR draws from, so every number printed here is
@@ -26,17 +36,21 @@ function report_figure3_stats(data, p, outputPath)
 % its p, and the condition ordering that backs the "decreased
 % monotonically with pressure" claim.
 
+    if nargin < 4 || isempty(baseName)
+        baseName = 'figure3';
+    end
+
     fids = 1;   % console
     if nargin >= 3 && ~isempty(outputPath)
         if ~isfolder(outputPath)
             mkdir(outputPath);
         end
-        reportFile = fullfile(outputPath, 'figure3_stats_report.txt');
+        reportFile = fullfile(outputPath, [baseName '_stats_report.txt']);
         fid = fopen(reportFile, 'w');
         if fid > 0
             fids(end+1) = fid; %#ok<AGROW>
         else
-            warning('report_figure3_stats:CannotWrite', ...
+            warning('report_cluster_pair_stats:CannotWrite', ...
                 'Could not open %s for writing -- printing to the console only.', ...
                 reportFile);
         end
@@ -44,12 +58,29 @@ function report_figure3_stats(data, p, outputPath)
 
     emit(fids, '\n');
     emit(fids, '========================================================================\n');
-    emit(fids, ' FIGURE 3 STATISTICS REPORT\n');
+    emit(fids, ' STATISTICS REPORT: %s\n', upper(strrep(baseName, '_', ' ')));
     emit(fids, ' generated %s\n', datestr(now, 'yyyy-mm-dd HH:MM:SS')); %#ok<TNOW1,DATST>
     emit(fids, '========================================================================\n');
     emit(fids, ['\n Every number below is read straight out of the same DATA struct\n' ...
-                ' plot_figure3_primary_motor.m draws from, so figure and text cannot\n' ...
-                ' disagree. Alpha = %g throughout.\n'], p.stats.alpha);
+                ' the figure is drawn from, so figure and text cannot\n' ...
+                ' disagree. The 2D ERSP test uses alpha = %g.\n'], p.stats.alpha);
+
+    % The band-power verdicts must use the SAME threshold the figure's
+    % black bars use, or this report will call a cluster significant that
+    % the figure correctly leaves unmarked -- and the text would follow
+    % the report.
+    p = resolve_report_band_threshold(p);
+    if p.bandStats.sigThreshold < p.bandStats.alpha
+        emit(fids, [' Band-power verdicts use the FDR cutoff p <= %.5g (across every\n' ...
+                    ' band and cluster the paper reports), NOT the per-test alpha =\n' ...
+                    ' %g. This is the same threshold the figure''s black bars use.\n'], ...
+            p.bandStats.sigThreshold, p.bandStats.alpha);
+    else
+        emit(fids, [' WARNING: band-power verdicts use the UNCORRECTED alpha = %g.\n' ...
+                    ' Run main_band_pvalue_family.m so the across-band correction\n' ...
+                    ' applies, or this report will disagree with the figure.\n'], ...
+            p.bandStats.alpha);
+    end
 
     for bi = 1:numel(data)
         report_one_cluster(fids, data(bi), p);
@@ -98,10 +129,45 @@ function report_one_cluster(fids, d, p)
 
     nSubj = numel(s.subjects);
     emit(fids, '  Participants (n) : %d\n', nSubj);
-    if isfield(s, 'ICs')
-        emit(fids, '  ICs in cluster   : %d\n', numel(s.ICs));
-    end
     emit(fids, '  Subject IDs      : %s\n', join_ids(s.subjects));
+
+    % TWO IC counts, and which one the FIGURE shows changed.
+    %
+    % s.ICs is what the statistics use: compute_cluster_ersp_qc.m walks
+    % subjects(si)/ICs(si) as a 1:1 pairing out of
+    % Subjects_ICs_in_clusters.mat, so exactly one component per
+    % participant enters every ERSP, band trace and permutation test.
+    %
+    % The dipole and topography panels ALSO use that set now.
+    % embed_cluster_dipoles builds its dipole list from those same
+    % (subject, IC) pairs and calls dipplot directly, and
+    % embed_cluster_topoplot averages icawinv over the same pairs. They
+    % used to go through std_dipplot/std_topoplot, which draw the whole
+    % cluster -- that is why this report once told you the caption had to
+    % explain a mismatch. It no longer does: dipole count equals n.
+    %
+    % The full cluster size is still printed, because it is a real
+    % property of the clustering and belongs in the Methods, but it is no
+    % longer what the panel shows.
+    if isfield(s, 'ICs')
+        emit(fids, '  ICs used everywhere : %d (one per participant -- stats AND panels)\n', ...
+            numel(s.ICs));
+    end
+    nInCluster = cluster_comp_count(d);
+    if ~isnan(nInCluster)
+        emit(fids, '  ICs in whole cluster: %d (clustering membership, NOT what the panels show)\n', ...
+            nInCluster);
+        if isfield(s, 'ICs') && nInCluster ~= numel(s.ICs)
+            emit(fids, '     -> %d participant(s) contributed more than one component to the\n', ...
+                nInCluster - numel(s.ICs));
+            emit(fids, '        clustering; one per participant was retained upstream.\n');
+            emit(fids, '     -> Methods should state the cluster size and the selection\n');
+            emit(fids, '        criterion (which lives in whatever built\n');
+            emit(fids, '        Subjects_ICs_in_clusters.mat, NOT in this pipeline).\n');
+            emit(fids, '     -> The CAPTION needs no mismatch caveat: the dipole panel plots\n');
+            emit(fids, '        %d dipoles, one per participant, matching n.\n', numel(s.ICs));
+        end
+    end
 
     report_centroid(fids, d);
 
@@ -116,6 +182,38 @@ function report_one_cluster(fids, d, p)
 
     report_ersp_anova(fids, s, p);
     report_bands(fids, s, d.bandStats, p);
+end
+
+function p = resolve_report_band_threshold(p)
+% The FDR cutoff the figure's bars use, so this report's verdicts match
+% them. Falls back to the uncorrected alpha when the family is missing;
+% the caller prints a warning in that case.
+    p.bandStats.sigThreshold = p.bandStats.alpha;
+    if ~isfield(p.bandStats, 'familyFile') || isempty(p.bandStats.familyFile)
+        return
+    end
+    q = 0.05;
+    if isfield(p.bandStats, 'fdrQ') && ~isempty(p.bandStats.fdrQ)
+        q = p.bandStats.fdrQ;
+    end
+    critP = band_pvalue_fdr(p.bandStats.familyFile, q, false);
+    if ~isnan(critP)
+        p.bandStats.sigThreshold = critP;
+    end
+end
+
+function n = cluster_comp_count(d)
+% How many components the STUDY says are in this cluster, i.e. how many
+% dipoles std_dipplot draws. NaN if the field isn't reachable.
+    n = NaN;
+    try
+        c = d.STUDY.cluster(d.clusterIdx);
+        if isfield(c, 'comps') && ~isempty(c.comps)
+            n = numel(c.comps);
+        end
+    catch
+        n = NaN;
+    end
 end
 
 function report_centroid(fids, d)
@@ -210,7 +308,7 @@ function report_bands(fids, s, bandStats, p)
         emit(fids, '        peak eta2p    : %.3f at %.1f%% of cycle\n', ...
             peakEta, pct_of_cycle(s.allTimes(peakIdx), s.allTimes));
 
-        sig = significant_clusters(b.clust, p.bandStats.alpha);
+        sig = significant_clusters(b.clust, p.bandStats.sigThreshold);
         if isempty(sig)
             emit(fids, '        significant   : NONE (report as n.s.)\n');
         else
@@ -279,7 +377,7 @@ function report_cross_cluster(fids, data, p)
             clean_band_name(data(1).bandStats(bandIdx).name));
         for bi = 1:numel(data)
             b   = data(bi).bandStats(bandIdx);
-            sig = significant_clusters(b.clust, p.bandStats.alpha);
+            sig = significant_clusters(b.clust, p.bandStats.sigThreshold);
             nm  = display_name(data(bi).s.name, p);
             if isempty(sig)
                 emit(fids, '     %-28s n.s.\n', nm);
@@ -308,14 +406,19 @@ function emit(fids, fmt, varargin)
     end
 end
 
-function sig = significant_clusters(clust, alpha)
+function sig = significant_clusters(clust, threshold)
 % Significant rows of a CLUSTER_PERM_1D table, widest first (the table
 % arrives sorted by mass; width is what the text reports, so re-sort).
+%
+% THRESHOLD is the FDR cutoff, not the per-test alpha, and the comparison
+% is <= because that cutoff IS an attained p-value: the largest one that
+% survives. A strict < would drop the very cluster that defines it. This
+% mirrors RENDER_BAND_POWER_ROW exactly, so report and figure agree.
     sig = [];
     if isempty(clust) || ~istable(clust) || height(clust) == 0
         return
     end
-    sig = clust(clust.p < alpha, :);
+    sig = clust(clust.p <= threshold, :);
     if height(sig) == 0
         sig = [];
         return

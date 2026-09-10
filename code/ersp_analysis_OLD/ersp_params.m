@@ -235,9 +235,9 @@ function p = ersp_params()
         'Right Parieto Occipital', 'Right parieto-occipital cortex'};
 % Frequency bands for Figure 3's band-power-vs-cycle row (theta through
 % gamma). Edges are freqTicks(1:5), not typed out separately, so the
-% bands used by the statistics (stats/compute_band_stats.m) and the
-% bands labelled on the panels (plotting/plot_cluster_pair_figure.m)
-% can never drift apart.
+% bands used by the statistics (load_figure3_data.m /
+% compute_band_stats) and the bands labelled on the panels
+% (plot_figure3_primary_motor.m) can never drift apart.
     p.plot.bandEdges = p.plot.freqTicks(1:5);      % [4 8 14 30 60] Hz
     p.plot.bandNames = {'\theta (4-8 Hz)', '\alpha (8-14 Hz)', ...
         '\beta (14-30 Hz)', '\gamma (30-60 Hz)'};

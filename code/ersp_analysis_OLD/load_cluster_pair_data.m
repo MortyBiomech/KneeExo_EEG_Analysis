@@ -1,7 +1,16 @@
-function data = load_figure3_data(cfg, p)
-% LOAD_FIGURE3_DATA  Load everything Figure 3 needs, once.
+function data = load_cluster_pair_data(cfg, p, clusterStudyNames)
+% LOAD_CLUSTER_PAIR_DATA  Load everything one left/right cluster pair needs.
 %
-%   DATA = LOAD_FIGURE3_DATA(CFG, P)
+%   DATA = LOAD_CLUSTER_PAIR_DATA(CFG, P, CLUSTERSTUDYNAMES)
+%
+% CLUSTERSTUDYNAMES is a cell array of .study base names, in the order
+% they should be stacked in the figure, e.g.
+%   {'Left_Prim_Motor', 'Right_Prim_Motor'}          (Figure 3)
+%   {'Left_Parieto_Occipital', 'Right_Parieto_Occipital'}   (Figure 4)
+%
+% Shared by Figure 3 and Figure 4 so both pairs are loaded, tested and
+% band-analysed by exactly the same code path -- see the note in
+% PLOT_CLUSTER_PAIR_FIGURE on why those two figures must not diverge.
 %
 % Loads the saved QC'd ERSP results (assemble_cluster_results.m output,
 % via main_ersp_pipeline_qc.m) and each cluster's own .study file (giving
@@ -30,7 +39,6 @@ function data = load_figure3_data(cfg, p)
 %                        COMPUTE_BAND_STATS below: .name, .eta2p,
 %                        .clust, .groupMean, .groupSEM
 
-    clusterStudyNames = {'Left_Prim_Motor', 'Right_Prim_Motor'};
     resultsPath = fullfile(cfg.figures, 'ERSP_QC');
     studyPath   = fullfile(cfg.study, 'Epoched_data', 'multiple_clustering');
 
@@ -41,6 +49,13 @@ function data = load_figure3_data(cfg, p)
         fprintf('Loading %s (results + .study)...\n', studyName);
 
         resultFile = fullfile(resultsPath, [studyName '_ersp_qc_results.mat']);
+        if ~isfile(resultFile)
+            error('load_cluster_pair_data:MissingResults', ...
+                ['No QC results at %s. Run main_ersp_pipeline_qc.m for the ' ...
+                 '%s ROI first -- this function only loads what that ' ...
+                 'pipeline already wrote, it does not compute it.'], ...
+                resultFile, studyName);
+        end
         loaded = load(resultFile, 's');
 
         [STUDY, ALLEEG] = pop_loadstudy('filename', [studyName '.study'], ...
@@ -57,46 +72,6 @@ function data = load_figure3_data(cfg, p)
         data(bi).clusterIdx = STUDY.etc.bemobil.clustering.cluster_ROI_index;
         data(bi).bandStats  = bandStats;
     end
-    fprintf('Figure 3 data loaded for %d clusters. Keep this variable around;\n', numel(data));
-    fprintf('pass it to plot_figure3_primary_motor as many times as you like.\n');
-end
-
-function bandStats = compute_band_stats(s, p)
-% One CLUSTER_PERM_1D call per frequency band (p.plot.bandEdges /
-% bandNames): the same RM-ANOVA-F / condition-permutation test Figure 2
-% runs on each muscle and on tracking error, run here on each band's
-% power-vs-cycle curve instead. Deliberately done here (the slow,
-% once-per-session load step) rather than in the plotting function -- see
-% this file's header.
-    nBand = numel(p.plot.bandNames);
-    nCond = numel(s.conditionOrder);
-    nSubj = size(s.erspdata.raw{1}, 3);
-    nTime = numel(s.allTimes);
-
-    bandStats = struct('name', {}, 'eta2p', {}, 'clust', {}, ...
-        'groupMean', {}, 'groupSEM', {});
-    for bi = 1:nBand
-        freqIdx = s.allFreqs >= p.plot.bandEdges(bi) & s.allFreqs < p.plot.bandEdges(bi+1);
-
-        C = nan(nSubj, nTime, nCond);
-        groupMean = nan(nTime, nCond);
-        groupSEM  = nan(nTime, nCond);
-        for c = 1:nCond
-            bandTS = squeeze(mean(s.erspdata.raw{c}(freqIdx, :, :), 1));  % time x nSubj
-            if isvector(bandTS)
-                bandTS = reshape(bandTS, nTime, []);
-            end
-            C(:, :, c)      = bandTS';
-            groupMean(:, c) = mean(bandTS, 2);
-            groupSEM(:, c)  = std(bandTS, 0, 2) / sqrt(size(bandTS, 2));
-        end
-
-        [clust, eta2p] = cluster_perm_1d(C, p.bandStats.nPerm, p.bandStats.alpha);
-
-        bandStats(bi).name      = p.plot.bandNames{bi};
-        bandStats(bi).eta2p     = eta2p;
-        bandStats(bi).clust     = clust;
-        bandStats(bi).groupMean = groupMean;
-        bandStats(bi).groupSEM  = groupSEM;
-    end
+    fprintf('Data loaded for %d clusters. Keep this variable around;\n', numel(data));
+    fprintf('pass it to plot_cluster_pair_figure as many times as you like.\n');
 end

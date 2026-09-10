@@ -1,4 +1,4 @@
-function bemobil_config = BeMoBIL_Configuration(data_path)
+function bemobil_config = bemobil_settings(data_path)
 
     %% BeMoBIL Configuration
     %% General Setup
