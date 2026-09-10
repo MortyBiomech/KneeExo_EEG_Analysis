@@ -1,10 +1,23 @@
-function plot_figure3_primary_motor(data, p, outputPath)
-% PLOT_FIGURE3_PRIMARY_MOTOR  Paper Figure 3: bilateral primary motor ERSPs.
+function plot_cluster_pair_figure(data, p, outputPath, baseName, windowName)
+% PLOT_CLUSTER_PAIR_FIGURE  Paper figure: one left/right cluster pair.
 %
-%   PLOT_FIGURE3_PRIMARY_MOTOR(DATA, P, OUTPUTPATH)
+%   PLOT_CLUSTER_PAIR_FIGURE(DATA, P, OUTPUTPATH, BASENAME, WINDOWNAME)
 %
-% Two stacked cluster blocks (Left Prim Motor, Right Prim Motor). Each
-% block is:
+% The layout behind BOTH Figure 3 (sensorimotor clusters) and Figure 4
+% (parieto-occipital clusters). It is deliberately ONE function rather
+% than one per figure: those two figures exist to be compared against
+% each other (a regional dissociation -- graded modulation in one pair,
+% none in the other), and that comparison only holds up if the two
+% figures are drawn identically. Two copies of this code would drift
+% apart within a few rounds of edits and quietly destroy the argument.
+% Anything you change here changes both figures, which is the point.
+%
+% DATA comes from LOAD_CLUSTER_PAIR_DATA. BASENAME is the output file
+% name without extension ('figure3_sensorimotor',
+% 'figure4_parieto_occipital'); WINDOWNAME is the MATLAB figure window's
+% title, and is optional.
+%
+% Two stacked cluster blocks, one per element of DATA. Each block is:
 %   top-left     3D equivalent dipoles (STUDY's own DIPFIT result, via
 %                std_dipplot)
 %   bottom-left  cluster mean scalp topography (via std_topoplot)
@@ -41,13 +54,13 @@ function plot_figure3_primary_motor(data, p, outputPath)
 % purpose, rather than refactoring that already-approved file to share
 % code with this one.
 %
-% DATA is produced by LOAD_FIGURE3_DATA(CFG, P) -- this function does no
-% loading of its own on purpose. Loading a .study file pulls in its
-% ALLEEG (the actual EEG data), which is slow; keeping that out of this
-% function means you can call it over and over while tuning the layout
-% below without paying that cost each time. Load DATA once, then re-run
-% just this function (or the section in main_figure3_primary_motor.m
-% that calls it).
+% DATA is produced by LOAD_CLUSTER_PAIR_DATA(CFG, P, NAMES) -- this
+% function does no loading of its own on purpose. Loading a .study file
+% pulls in its ALLEEG (the actual EEG data), which is slow; keeping that
+% out of this function means you can call it over and over while tuning
+% the layout below without paying that cost each time. Load DATA once,
+% then re-run just this function (or section 3 of
+% main_figure3_primary_motor.m / main_figure4_parieto_occipital.m).
 %
 % The whole figure is capped at 170 mm tall -- the verified Nature
 % Portfolio maximum figure height (their research-figure-guide states
@@ -65,14 +78,20 @@ function plot_figure3_primary_motor(data, p, outputPath)
 % No figure-wide legend is drawn for now -- DRAW_CONDITION_LEGEND is kept
 % below, defined but unused, for whenever you want to place one.
 %
-% NOT YET RUN. embed_cluster_dipoles/embed_cluster_topoplot are still
-% flagged below as unverified against your EEGLAB version -- run this,
-% look at the output, and tell me what needs fixing.
+% Verified against Figure 3's sensorimotor pair. The parieto-occipital
+% pair (Figure 4) runs through this same code unchanged; the only thing
+% that differs is which clusters LOAD_CLUSTER_PAIR_DATA was pointed at.
+
+    if nargin < 5 || isempty(windowName)
+        windowName = baseName;
+    end
+
+    p = resolve_band_significance_threshold(p, {data.s});
 
     L = build_figure3_layout(p);
     widthIn  = L.figWidthMM  * p.plot.mmToInch;
     heightIn = L.figHeightMM * p.plot.mmToInch;
-    fig = figure('Name', 'Figure 3: Primary motor clusters', 'Color', [1 1 1], ...
+    fig = figure('Name', windowName, 'Color', [1 1 1], ...
         'Units', 'inches', 'Position', [0 0 widthIn heightIn], ...
         'PaperUnits', 'inches', 'PaperSize', [widthIn heightIn], ...
         'PaperPosition', [0 0 widthIn heightIn]);
@@ -91,8 +110,8 @@ function plot_figure3_primary_motor(data, p, outputPath)
     if ~isfolder(outputPath)
         mkdir(outputPath);
     end
-    save_all_formats(fig, fullfile(outputPath, 'figure3_primary_motor'), p);
-    fprintf('Figure 3 saved to %s\n', outputPath);
+    save_all_formats(fig, fullfile(outputPath, baseName), p);
+    fprintf('%s saved to %s\n', baseName, outputPath);
 end
 
 %% ========================================================================
@@ -187,6 +206,127 @@ function name = display_cluster_name(rawName, p)
     end
 end
 
+function p = resolve_band_significance_threshold(p, sList)
+% Decides the p cutoff the eta^2 strips' black bars use, and stores it in
+% p.bandStats.sigThreshold for RENDER_BAND_POWER_ROW.
+%
+% The bars mark band-power clusters that survive correction ACROSS bands
+% and clusters, not the raw per-test alpha. That correction is a property
+% of the whole family of tests reported in the paper, which a single
+% figure cannot see -- so the family lives in a .mat written by
+% SAVE_BAND_PVALUES, and BAND_PVALUE_FDR turns it into the one cutoff
+% that reproduces the Benjamini-Hochberg decision.
+%
+% If the family file is missing or not configured, this falls back to the
+% uncorrected alpha and says so LOUDLY. That warning is the point: a
+% figure whose bars disagree with the corrected numbers in the text is
+% exactly the failure this machinery exists to prevent, and it must never
+% happen quietly.
+    p.bandStats.sigThreshold = p.bandStats.alpha;
+
+    if ~isfield(p.bandStats, 'familyFile') || isempty(p.bandStats.familyFile)
+        warning('plot_cluster_pair_figure:NoFamilyConfigured', ...
+            ['p.bandStats.familyFile is not set, so the eta^2 bars use the ' ...
+             'UNCORRECTED alpha = %g. Set it in your main script and run ' ...
+             'build_band_pvalue_family first.'], p.bandStats.alpha);
+        return
+    end
+
+    q = 0.05;
+    if isfield(p.bandStats, 'fdrQ') && ~isempty(p.bandStats.fdrQ)
+        q = p.bandStats.fdrQ;
+    end
+
+    [critP, family] = band_pvalue_fdr(p.bandStats.familyFile, q);
+    if isnan(critP)
+        warning('plot_cluster_pair_figure:FdrUnavailable', ...
+            ['Could not read the band p-value family, so the eta^2 bars use ' ...
+             'the UNCORRECTED alpha = %g. The bars may mark clusters the ' ...
+             'Results text reports as non-significant.'], p.bandStats.alpha);
+        return
+    end
+
+    if ~family_is_usable(p, family, sList)
+        warning('plot_cluster_pair_figure:FamilyStale', ...
+            ['The band p-value family does not match this figure (see the ' ...
+             'message above), so the eta^2 bars fall back to the ' ...
+             'UNCORRECTED alpha = %g. Re-run main_band_pvalue_family.'], ...
+            p.bandStats.alpha);
+        return
+    end
+
+    p.bandStats.sigThreshold = critP;
+    fprintf('Band-power bars use the FDR cutoff p <= %.5g (q < %.3g, m = %d).\n', ...
+        critP, q, height(family));
+end
+
+function ok = family_is_usable(p, family, sList)
+% Two ways a family can be wrong for the figure about to be drawn, both
+% silent without this check.
+%
+% (1) It was built under different test settings, so its p-values describe
+%     an analysis you are no longer running.
+% (2) It does not contain the clusters this figure plots, which means the
+%     correction was computed over a family these results were never part
+%     of -- and m is wrong.
+    ok = false;
+
+    wanted = band_family_settings(p);
+    stored = [];
+    try
+        loaded = load(p.bandStats.familyFile, 'settings');
+        if isfield(loaded, 'settings')
+            stored = loaded.settings;
+        end
+    catch
+        stored = [];
+    end
+    if isempty(stored)
+        fprintf(2, ['  Family file has no stored settings (built by an older ' ...
+                    'version). Rebuild it.\n']);
+        return
+    end
+    if ~isequal(stored.nPerm, wanted.nPerm) || ~isequal(stored.alpha, wanted.alpha) ...
+            || ~isequal(stored.bandEdges, wanted.bandEdges) ...
+            || ~isequal(stored.bandNames, wanted.bandNames) ...
+            || ~isequal(get_seed(stored), get_seed(wanted))
+        fprintf(2, ['  Family was built with nPerm=%g, alpha=%g, seed=%s; this ' ...
+                    'session has nPerm=%g, alpha=%g, seed=%s (or different band ' ...
+                    'edges).\n'], ...
+            stored.nPerm, stored.alpha, seed_str(stored), ...
+            wanted.nPerm, wanted.alpha, seed_str(wanted));
+        return
+    end
+
+    for i = 1:numel(sList)
+        name = string(sList{i}.name);
+        if ~any(family.cluster == name)
+            fprintf(2, '  Cluster "%s" is not in the family file.\n', name);
+            return
+        end
+    end
+
+    ok = true;
+end
+
+function s = get_seed(settings)
+% Missing seed field (older family file) reads as empty, which will not
+% match a configured seed -- correctly forcing a rebuild.
+    s = [];
+    if isfield(settings, 'rngSeed')
+        s = settings.rngSeed;
+    end
+end
+
+function txt = seed_str(settings)
+    s = get_seed(settings);
+    if isempty(s)
+        txt = 'none';
+    else
+        txt = num2str(s);
+    end
+end
+
 function lbl = panel_label(idx, p)
 % 'a', 'b', ... (or 'A', 'B', ... if p.plot.panelLabelCase is ever changed
 % to 'upper') for the IDX-th cluster block, IDX starting at 1.
@@ -253,13 +393,13 @@ function render_cluster_block(fig, L, blockTopMM, panelIdx, isLastBlock, s, STUD
     dipolePos = mm_box_to_normalized_fig(0, ...
         L.figHeightMM - leftColTopMM - L.dipoleHeightMM, ...
         L.leftColWidthMM, L.dipoleHeightMM, L);
-    embed_cluster_dipoles(fig, dipolePos, STUDY, ALLEEG, clusterIdx, p);
+    embed_cluster_dipoles(fig, dipolePos, STUDY, ALLEEG, clusterIdx, s, p);
 
     topoTopMM = leftColTopMM + L.dipoleHeightMM + L.topoGapMM;
     topoPos = mm_box_to_normalized_fig(0, ...
         L.figHeightMM - topoTopMM - L.topoHeightMM, ...
         L.leftColWidthMM, L.topoHeightMM, L);
-    embed_cluster_topoplot(fig, topoPos, STUDY, ALLEEG, clusterIdx, p);
+    embed_cluster_topoplot(fig, topoPos, STUDY, ALLEEG, clusterIdx, s, p);
 
     % --- right column: ERSP row, then band-power row, sharing one column
     %     geometry (build_row_spec) so their panels align ------------------
@@ -367,45 +507,293 @@ end
 %  Dipole and topography panels: draw with EEGLAB's own STUDY functions,
 %  then transplant the resulting axes into the Figure 3 canvas
 %  ========================================================================
-function embed_cluster_dipoles(targetFig, targetPos, STUDY, ALLEEG, clusterIdx, p)
-% std_dipplot always opens its own figure (and, for 3D dipoles, its own
-% rotatable axes plus lighting) -- there is no argument to draw into an
-% existing target axes, so this copies the resulting axes across into
-% TARGETFIG instead (same pattern as embed_cluster_topoplot below).
+function embed_cluster_dipoles(targetFig, targetPos, STUDY, ALLEEG, clusterIdx, s, p)
+% Draws ONLY the components that entered the statistics -- one per
+% participant, the set in S.subjects/S.ICs -- rather than the whole
+% cluster.
 %
-% A rasterize-and-embed version (rendering the source axes to a PNG via
-% exportgraphics and displaying that as a plain image()) was tried here
-% to fix blocky MRI slices, on the theory that TARGETFIG's forced
-% 'painters' renderer was the culprit. It made the panel look WORSE --
-% smaller and more pixelated -- so it's reverted; copyobj is back to
-% being the whole mechanism. View, lighting and image smoothing are
-% applied to the copied axes (not the source) since lighting in
-% particular doesn't reliably survive copyobj otherwise.
-    figsBefore = findobj(0, 'Type', 'figure');
-    std_dipplot(STUDY, ALLEEG, 'clusters', clusterIdx, 'view', nice_3d_view());
-    figsAfter = findobj(0, 'Type', 'figure');
-    newFigs   = setdiff(figsAfter, figsBefore);
-    if isempty(newFigs)
-        warning('embed_cluster_dipoles:NoFigure', ...
-            'std_dipplot did not open a new figure -- nothing to embed for cluster %d.', ...
-            clusterIdx);
+% Why not std_dipplot any more. std_dipplot plots
+% STUDY.cluster(k).comps, the full cluster membership, which for these
+% clusters is 20 and 19 components from 13 and 12 participants. So the
+% panel advertised a different sample than every statistic beside it.
+% It also gave us no control: dipplot's rendering resolved from each
+% .study file's own defaults, so the two parieto-occipital clusters came
+% out drawn differently from each other and from the sensorimotor pair,
+% and 'projlines' silently conflicts with 'spheres' (dipplot prints
+% "projections cannot be plotted for 3-D sphere" and drops the lines).
+%
+% Building the dipole list ourselves and calling dipplot directly fixes
+% both: the panel matches the analysis, and every rendering option is
+% ours. dipplot is the dipfit plugin's own function, so we still get its
+% MRI slice rendering rather than reimplementing it.
+%
+% MARKER SIZE. With 'spheres','off' dipplot draws each dipole as a plot
+% marker sized in POINTS, which does not shrink with the axes -- at this
+% panel's ~18 mm that reads as a giant blob covering the brain (the same
+% failure as topoplot's head cartoon, see cap_head_cartoon_linewidth).
+% CAP_DIPOLE_MARKER_SIZE below fixes it. 'spheres','on' would size in
+% data units and scale correctly, but it costs the projection lines, and
+% the lines are what let a reader place the cluster in the head.
+    dipoles = collect_analysis_dipoles(STUDY, ALLEEG, clusterIdx, s);
+    if isempty(dipoles)
+        warning('embed_cluster_dipoles:NoDipoles', ...
+            ['Could not assemble dipoles for %s -- the panel will be empty. ' ...
+             'Run debug_dipplot_contents to see what is in the STUDY.'], s.name);
         return
     end
 
-    srcAx = largest_axes(newFigs(1));
+    opts = dipplot_options(ALLEEG, p, numel(dipoles));
+
+    % CRITICAL: dipplot draws into the CURRENT figure when it does not
+    % open one of its own. TARGETFIG is current at this point, so calling
+    % dipplot straight away paints the MRI cube across the whole paper
+    % figure, on top of every panel. std_dipplot always opened its own
+    % figure, which is what hid this. Give dipplot a throwaway figure to
+    % land in and it cannot reach TARGETFIG whatever it decides to do.
+    figsBefore = findobj(0, 'Type', 'figure');
+    tmpFig = figure('Color', [1 1 1], 'Name', 'scratch: dipplot');   %#ok<NASGU>
+    try
+        dipplot(dipoles, opts{:});
+    catch err
+        close_figures(setdiff(findobj(0, 'Type', 'figure'), figsBefore));
+        warning('embed_cluster_dipoles:DipplotFailed', ...
+            'dipplot errored for %s (%s) -- panel left empty.', s.name, err.message);
+        return
+    end
+    newFigs = setdiff(findobj(0, 'Type', 'figure'), figsBefore);
+    if isempty(newFigs)
+        warning('embed_cluster_dipoles:NoFigure', ...
+            'dipplot produced no figure -- nothing to embed for %s.', s.name);
+        return
+    end
+
+    srcAx = best_dipole_axes(newFigs);
+    if isempty(srcAx)
+        close_figures(newFigs);
+        warning('embed_cluster_dipoles:NoAxes', ...
+            'dipplot opened a figure but drew no axes for %s.', s.name);
+        return
+    end
     newAx = copyobj(srcAx, targetFig);
     set(newAx, 'Units', 'normalized', 'Position', targetPos, ...
         'FontName', p.plot.fontName, 'FontSize', p.plot.tickFontSize);
     view(newAx, nice_3d_view());
     camlight(newAx);
     smooth_images(newAx);
-    thin_dashed_lines(newAx, 0.15);   % as thin as still reliably visible;
-                                       % the dipole markers/bodies
-                                       % themselves are solid lines,
-                                       % untouched by this filter
-    close(newFigs);
+    thin_dashed_lines(newAx, p.plot.dipoleGuideLineWidth);
+    style_dipole_markers(newAx, p);
+    close_figures(newFigs);
 end
 
+function close_figures(figs)
+    for i = 1:numel(figs)
+        if isgraphics(figs(i))
+            close(figs(i));
+        end
+    end
+end
+
+function ax = best_dipole_axes(figs)
+% The dipole axes across every figure dipplot may have left behind: the
+% one with the most children, since that is the 3D scene (MRI slice
+% surfaces plus dipoles) rather than a colorbar or a control panel.
+% Ties break on on-screen area.
+    ax = [];
+    best = [-1 -1];
+    for fi = 1:numel(figs)
+        candidates = findobj(figs(fi), 'Type', 'axes');
+        for ai = 1:numel(candidates)
+            a = candidates(ai);
+            score = [numel(get(a, 'Children')), a.Position(3)*a.Position(4)];
+            if score(1) > best(1) || (score(1) == best(1) && score(2) > best(2))
+                best = score;
+                ax = a;
+            end
+        end
+    end
+end
+
+function opts = dipplot_options(ALLEEG, p, nDipole)
+% dipplot's own options, assembled in one place. The MRI and coordinate
+% format are taken from the data rather than hardcoded, since a mismatch
+% there puts the dipoles in the wrong place rather than erroring.
+%
+% 'color' is set to ONE colour repeated per dipole. Left alone, dipplot
+% gives every dipole its own colour from a cycling palette, which turned
+% the panel into a rainbow of projection lines -- these dipoles are
+% interchangeable members of one cluster, so colour would encode nothing
+% and only add visual noise.
+% The rendering flags (projlines/spheres/normlen) come from
+% p.plot.dipplotOptions ALONE and are deliberately not repeated here.
+% They used to be listed in both places, so dipplot received each twice
+% and warned about duplicates -- and editing the params file would have
+% had no effect if the two ever disagreed.
+    opts = {'view', nice_3d_view(), ...
+            'color', repmat({p.plot.dipoleColor}, 1, max(nDipole, 1))};
+
+    df = [];
+    if isfield(ALLEEG(1), 'dipfit')
+        df = ALLEEG(1).dipfit;
+    end
+    if ~isempty(df)
+        if isfield(df, 'mrifile') && ~isempty(df.mrifile)
+            opts = [opts, {'mri', df.mrifile}];
+        end
+        if isfield(df, 'coordformat') && ~isempty(df.coordformat)
+            opts = [opts, {'coordformat', df.coordformat}];
+        end
+    end
+
+    if isfield(p.plot, 'dipplotOptions') && ~isempty(p.plot.dipplotOptions)
+        opts = [opts, p.plot.dipplotOptions];   % caller overrides win
+    end
+end
+
+function dipoles = collect_analysis_dipoles(STUDY, ALLEEG, clusterIdx, s)
+% One dipole per participant: exactly the (subject, IC) pairs in
+% S.subjects/S.ICs that compute_cluster_ersp_qc.m fed to the ERSPs.
+%
+% The subject numbers in S.subjects are the ones that file built with
+% "Subjects + 4", and compute_cluster_ersp_qc addresses datasets as
+% sprintf('S%d', subject) -- the same naming the dipplot GUI shows
+% ("S10, IC3"). So datasets are matched on that name here too. If your
+% STUDY names its subjects differently, this is the line to change.
+    dipoles = [];
+    for si = 1:numel(s.subjects)
+        subjName = sprintf('S%d', s.subjects(si));
+        icIdx    = s.ICs(si);
+
+        dsIdx = find_dataset_for_subject(STUDY, subjName);
+        if isnan(dsIdx)
+            warning('collect_analysis_dipoles:NoDataset', ...
+                'No dataset named %s in the STUDY -- skipping that participant.', subjName);
+            continue
+        end
+
+        model = dipfit_model(ALLEEG, dsIdx, icIdx);
+        if isempty(model)
+            warning('collect_analysis_dipoles:NoDipfit', ...
+                'No dipfit model for %s IC%d -- skipping.', subjName, icIdx);
+            continue
+        end
+
+        model.component = icIdx;
+        if isempty(dipoles)
+            dipoles = model;
+        else
+            dipoles(end+1) = model; %#ok<AGROW>
+        end
+    end
+
+    fprintf('  %s: plotting %d dipoles (one per participant, the analysed set)\n', ...
+        s.name, numel(dipoles));
+    report_plotted_centroid(dipoles, STUDY, clusterIdx);
+end
+
+function dsIdx = find_dataset_for_subject(STUDY, subjName)
+% First dataset belonging to SUBJNAME. A subject usually has several
+% datasets (one per condition) but they share one ICA decomposition and
+% one dipfit model, so the first is as good as any.
+    dsIdx = NaN;
+    if ~isfield(STUDY, 'datasetinfo')
+        return
+    end
+    for k = 1:numel(STUDY.datasetinfo)
+        if strcmpi(STUDY.datasetinfo(k).subject, subjName)
+            dsIdx = k;
+            return
+        end
+    end
+end
+
+function model = dipfit_model(ALLEEG, dsIdx, icIdx)
+% One component's dipfit model, reduced to the fields dipplot reads, so
+% a stray field in one dataset cannot break the struct array we build.
+    model = [];
+    if dsIdx > numel(ALLEEG) || ~isfield(ALLEEG(dsIdx), 'dipfit')
+        return
+    end
+    df = ALLEEG(dsIdx).dipfit;
+    if ~isfield(df, 'model') || icIdx > numel(df.model)
+        return
+    end
+    m = df.model(icIdx);
+    if ~isfield(m, 'posxyz') || isempty(m.posxyz) || all(m.posxyz(:) == 0)
+        return
+    end
+
+    model = struct('posxyz', m.posxyz, 'momxyz', [], 'rv', NaN);
+    if isfield(m, 'momxyz'), model.momxyz = m.momxyz; end
+    if isfield(m, 'rv'),     model.rv     = m.rv;     end
+end
+
+function report_plotted_centroid(dipoles, STUDY, clusterIdx)
+% The centroid of what is actually PLOTTED, next to the centroid the
+% STUDY stores for the whole cluster. These are different numbers now
+% that the panel shows a subset, and the manuscript quotes one of them:
+% report whichever matches what the figure and the statistics use.
+    if isempty(dipoles)
+        return
+    end
+    pos = zeros(numel(dipoles), 3);
+    for i = 1:numel(dipoles)
+        pos(i, :) = dipoles(i).posxyz(1, :);
+    end
+    c = mean(pos, 1);
+    fprintf('     centroid of plotted (analysed) dipoles : [%.0f %.0f %.0f]\n', ...
+        c(1), c(2), c(3));
+    try
+        full = STUDY.cluster(clusterIdx).dipole.posxyz(1, :);
+        fprintf('     centroid STUDY stores for the cluster  : [%.0f %.0f %.0f]\n', ...
+            full(1), full(2), full(3));
+    catch
+        % no stored centroid; nothing to compare against
+    end
+end
+
+function style_dipole_markers(ax, p)
+% Sets the dipole markers' appearance outright, rather than only capping
+% their size.
+%
+% dipplot's dipole bodies are the SOLID line objects; the dashed ones are
+% the projection guides and belong to THIN_DASHED_LINES. With
+% 'spheres','off' each dipole is a plot marker sized in POINTS for a
+% full-size figure, and points do not shrink with the axes. Capping the
+% size alone still left them merging into one angular mass, because at
+% this panel's scale a dozen tightly clustered filled markers overlap.
+% So: an explicit small size, and a thin light edge so overlapping
+% dipoles still read as separate dots rather than fusing.
+    solid = findobj(ax, 'Type', 'line', '-not', 'LineStyle', '--');
+    for i = 1:numel(solid)
+        h = solid(i);
+        if strcmpi(get(h, 'Marker'), 'none')
+            % The dipole's MOMENT line (orientation stick). dipplot draws
+            % these at LineWidth 4, which is the blue blob: measured, one
+            % per dipole, solid, marker-less. An earlier version of this
+            % loop skipped them because they carry no marker, which is
+            % exactly why capping marker size never fixed anything.
+            %
+            % Hidden outright when p.plot.showDipoleMoment is false. The
+            % sticks all have the same length ('normlen','on'), so they
+            % show orientation only, and at this panel's ~18 mm that is
+            % not readable anyway -- the dot positions are what the panel
+            % is actually for.
+            if p.plot.showDipoleMoment
+                set(h, 'LineWidth', p.plot.dipoleMomentLineWidth);
+            else
+                set(h, 'Visible', 'off');
+            end
+            continue
+        end
+        % The dipole's LOCATION. dipplot draws these as Marker '.' at
+        % MarkerSize 30, sized in points for a full-size figure.
+        set(h, 'Marker', 'o', ...
+               'MarkerSize', p.plot.dipoleMarkerSize, ...
+               'MarkerFaceColor', p.plot.dipoleColor, ...
+               'MarkerEdgeColor', p.plot.dipoleEdgeColor, ...
+               'LineWidth', p.plot.dipoleGuideLineWidth);
+    end
+end
 function smooth_images(ax)
 % Bilinear interpolation on every image object in AX (MRI slices here,
 % same idea as render_ersp_row's imagesc smoothing). isprop guards
@@ -441,34 +829,129 @@ function v = nice_3d_view()
     v = [1 -1 1];
 end
 
-function embed_cluster_topoplot(targetFig, targetPos, STUDY, ALLEEG, clusterIdx, p)
-% Same copyobj pattern as embed_cluster_dipoles, for STUDY's own cluster
-% mean scalp topography (std_topoplot). Same "not yet run" caveat.
+function embed_cluster_topoplot(targetFig, targetPos, STUDY, ALLEEG, clusterIdx, s, p)
+% Cluster-mean scalp map over the SAME one-per-participant component set
+% the ERSPs, the statistics and the dipole panel use.
 %
-% The odd-looking nose/ears you saw are topoplot()'s head cartoon drawn
-% at its usual absolute line width (tuned for a normal-sized ~400-600 px
-% MATLAB figure) inside a panel that's now only ~25 mm across -- the
-% outline doesn't shrink with the axes, so it reads as chunky/oversized
-% on the smaller head circle. CAP_HEAD_CARTOON_LINEWIDTH below caps every
-% line/patch edge in the copied axes at a small fixed width instead.
+% std_topoplot averages every component in STUDY.cluster(k) -- 20 and 19
+% components from 13 and 12 participants for these clusters -- so it
+% described a different sample from everything else in the figure. This
+% builds the mean from ALLEEG(ds).icawinv(:, ic) for exactly the
+% (subject, IC) pairs in S.subjects/S.ICs and plots it with topoplot().
+%
+% POLARITY. An independent component's sign is arbitrary: the same
+% topography can come out of ICA positive for one participant and
+% negative for the next. Averaging the raw scalp projections would then
+% cancel a real topography toward zero. Each map is therefore flipped to
+% correlate positively with a reference before averaging, which is the
+% same thing EEGLAB does internally when it builds a cluster mean map.
+% If this panel ever looks like noise where std_topoplot showed a clean
+% dipolar pattern, suspect this step first.
+%
+% Falls back to std_topoplot, with a warning, if the scalp projections
+% cannot be assembled -- better a panel describing the wrong sample than
+% no panel at all, as long as it says so.
+    [maps, chanlocs] = collect_analysis_topomaps(ALLEEG, STUDY, s);
+
     figsBefore = findobj(0, 'Type', 'figure');
-    std_topoplot(STUDY, ALLEEG, 'clusters', clusterIdx);
-    figsAfter = findobj(0, 'Type', 'figure');
-    newFigs   = setdiff(figsAfter, figsBefore);
+    tmpFig = figure('Color', [1 1 1], 'Name', 'scratch: topoplot');   %#ok<NASGU>
+    if isempty(maps)
+        warning('embed_cluster_topoplot:FellBackToStudy', ...
+            ['Could not assemble per-participant scalp maps for %s, so this ' ...
+             'panel falls back to std_topoplot and shows the WHOLE cluster ' ...
+             'rather than the analysed components.'], s.name);
+        std_topoplot(STUDY, ALLEEG, 'clusters', clusterIdx);
+    else
+        meanMap = polarity_aligned_mean(maps);
+        % plotrad is NOT passed unless p.plot.topoPlotRad is set, so
+        % topoplot uses its own default: interpolate out to the outermost
+        % electrode and no further. With electrodes below the 10-20
+        % equator the map then extends past the head circle, which is
+        % real measured data rather than an artifact -- see the note on
+        % these two fields in ersp_params.m before changing this.
+        topoArgs = {'electrodes', 'off', 'headrad', p.plot.topoHeadRad};
+        if ~isempty(p.plot.topoPlotRad)
+            topoArgs = [topoArgs, {'plotrad', p.plot.topoPlotRad}];
+        end
+        topoplot(meanMap, chanlocs, topoArgs{:});
+    end
+    newFigs = setdiff(findobj(0, 'Type', 'figure'), figsBefore);
     if isempty(newFigs)
         warning('embed_cluster_topoplot:NoFigure', ...
-            'std_topoplot did not open a new figure -- nothing to embed for cluster %d.', ...
-            clusterIdx);
+            'No topography figure produced for %s.', s.name);
         return
     end
 
-    srcAx = largest_axes(newFigs(1));
+    srcAx = best_dipole_axes(newFigs);   % same "most children" rule
+    if isempty(srcAx)
+        close_figures(newFigs);
+        warning('embed_cluster_topoplot:NoAxes', ...
+            'Topography figure had no axes for %s.', s.name);
+        return
+    end
+
     newAx = copyobj(srcAx, targetFig);
     set(newAx, 'Units', 'normalized', 'Position', targetPos);
-    title(newAx, '');   % std_topoplot's own per-cluster title is
-                         % redundant with this block's suptitle
+    title(newAx, '');   % the block already carries the cluster name
     cap_head_cartoon_linewidth(newAx, 0.75);
-    close(newFigs);
+    close_figures(newFigs);
+end
+
+function [maps, chanlocs] = collect_analysis_topomaps(ALLEEG, STUDY, s)
+% Scalp projection (one column of icawinv) for each analysed component,
+% as nChan x nParticipant. Empty if the montage is not shared, since
+% averaging across different channel sets would be meaningless.
+    maps = [];
+    chanlocs = [];
+    nChan = NaN;
+
+    for si = 1:numel(s.subjects)
+        subjName = sprintf('S%d', s.subjects(si));
+        dsIdx    = find_dataset_for_subject(STUDY, subjName);
+        if isnan(dsIdx) || dsIdx > numel(ALLEEG)
+            continue
+        end
+        EEGi = ALLEEG(dsIdx);
+        if ~isfield(EEGi, 'icawinv') || isempty(EEGi.icawinv) || ...
+                s.ICs(si) > size(EEGi.icawinv, 2)
+            continue
+        end
+        w = EEGi.icawinv(:, s.ICs(si));
+
+        if isnan(nChan)
+            nChan    = numel(w);
+            chanlocs = EEGi.chanlocs;
+        elseif numel(w) ~= nChan
+            warning('collect_analysis_topomaps:MontageMismatch', ...
+                ['%s has %d channels but earlier participants have %d. ' ...
+                 'Scalp maps cannot be averaged across different montages, ' ...
+                 'so this panel falls back to std_topoplot.'], ...
+                subjName, numel(w), nChan);
+            maps = [];
+            return
+        end
+        maps = [maps, w(:)]; %#ok<AGROW>
+    end
+
+    if ~isempty(maps)
+        fprintf('  %s: scalp map averaged over %d participants (analysed set)\n', ...
+            s.name, size(maps, 2));
+    end
+end
+
+function m = polarity_aligned_mean(maps)
+% Mean scalp map with each component's arbitrary sign resolved first.
+% The reference is the column with the largest norm (the most clearly
+% expressed map, so the least likely to align the rest to noise); every
+% other column is flipped to correlate positively with it.
+    [~, refIdx] = max(sqrt(sum(maps.^2, 1)));
+    ref = maps(:, refIdx);
+    for i = 1:size(maps, 2)
+        if dot(maps(:, i), ref) < 0
+            maps(:, i) = -maps(:, i);
+        end
+    end
+    m = mean(maps, 2);
 end
 
 function cap_head_cartoon_linewidth(ax, maxWidth)
@@ -565,6 +1048,13 @@ function render_ersp_row(fig, L, region, rowSpec, s, p)
         draw_mid_event_line(axesHandles(ci), eventTimes(2), p);
         uistack(im, 'bottom');
 
+        % XTickLabel is emptied below on purpose: the numeric cycle ticks
+        % belong to the eta^2 strip at the bottom of this column, which
+        % this row reads off. (Keep explanatory comments like this one
+        % OUT of the set() argument list -- a comment-only line inside a
+        % ... continuation is a syntax error, which is exactly how this
+        % file broke once.)
+
         set(axesHandles(ci), 'CLim', colorLimits, ...
             'XLim', [s.allTimes(1) s.allTimes(end)], ...
             'YLim', [logFreqs(1) logFreqYLimTop], 'YDir', 'normal', ...
@@ -572,7 +1062,7 @@ function render_ersp_row(fig, L, region, rowSpec, s, p)
                 freqTicksHz, 'UniformOutput', false), ...
             'YMinorTick', 'off', ...
             'XTick', [s.allTimes(1) s.eventTimes(2) s.allTimes(end)], ...
-            'XTickLabel', [], ...   % ticks belong to the eta^2 strip at the bottom of this column
+            'XTickLabel', [], ...
             'FontName', p.plot.fontName, 'FontSize', p.plot.tickFontSize, ...
             'Box', 'on', 'Layer', 'top');
 
@@ -582,6 +1072,18 @@ function render_ersp_row(fig, L, region, rowSpec, s, p)
             'FontName', p.plot.fontName, 'FontSize', p.plot.fontSize, 'Clipping', 'off');
 
         draw_event_labels(axesHandles(ci), eventTimes, s.allTimes, eventLabelRowMM, axesHeightMM, p);
+
+        % An all-zero RM-ANOVA panel is a real result (no time-frequency
+        % bin survived correction), but a uniformly blank rectangle reads
+        % as a rendering failure rather than as a null -- so say so in
+        % the panel. This is what the parieto-occipital figure shows;
+        % the sensorimotor one has a mask and never reaches this branch.
+        if ci == nPanel && ~any(panelData{ci}(:))
+            text(axesHandles(ci), 0.5, 0.5, 'no significant clusters', ...
+                'Units', 'normalized', 'HorizontalAlignment', 'center', ...
+                'VerticalAlignment', 'middle', 'FontName', p.plot.fontName, ...
+                'FontSize', p.plot.tickFontSize, 'Color', [0.35 0.35 0.35]);
+        end
 
         if ci == 1
             xNormY = -(rowSpec.yTickRowMM + rowSpec.yLabelGapMM + rowSpec.yLabelRowMM/2) / panelWidthMM;
@@ -728,7 +1230,10 @@ function mainGeom = render_band_power_row(fig, L, region, rowSpec, s, bandStats,
         draw_mid_event_line(axS, eventTimes(2), p);
         clust = bandStats(bi).clust;
         if ~isempty(clust)
-            sig = clust(clust.p < p.bandStats.alpha, :);
+            % <= not <, because the FDR cutoff IS an attained p-value:
+            % the largest one that survives. A strict < would drop the
+            % very cluster that defines the threshold.
+            sig = clust(clust.p <= p.bandStats.sigThreshold, :);
             for k = 1:height(sig)
                 plot(axS, [s.allTimes(sig.StartIdx(k)) s.allTimes(sig.EndIdx(k))], ...
                     [-0.08 -0.08], 'k-', 'LineWidth', 1.8, 'HandleVisibility', 'off');
@@ -935,7 +1440,7 @@ function save_all_formats(fig, basePathNoExt, p)
             case 'svg'
                 print(fig, basePathNoExt, '-dsvg', '-vector');
             otherwise
-                warning('plot_figure3_primary_motor:UnknownFormat', ...
+                warning('plot_cluster_pair_figure:UnknownFormat', ...
                     'Unrecognised format ''%s'' in p.plot.formats, skipped.', fmt);
         end
     end

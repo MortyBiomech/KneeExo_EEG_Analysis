@@ -32,6 +32,7 @@ addpath(genpath(fileparts(thisFile)));
 addpath(find_config_folder(thisFile));
 cfg = ansymb_config();
 p   = ersp_params();
+p.bandStats.familyFile = fullfile(cfg.figures, 'band_pvalue_family.mat');
 
 if ~exist('ALLEEG', 'var')
     eeglab;

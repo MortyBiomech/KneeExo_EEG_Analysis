@@ -2,11 +2,19 @@
 *.asv
 *.m~
 *.autosave
+*.mat
+*.asv
 slprj/
 codegen/
 
 # Figures produced by running the analyses
 figures/
+
+# Local paths
+code/config/local_paths.m
+
+# Big EMG data
+data/derived/EMG_Data_timewarped.mat
 
 # Large data that must never enter the repository.
 # Raw recordings, EEGLAB sets and multi-gigabyte intermediates live outside the
@@ -16,10 +24,6 @@ figures/
 *.fdt
 *.icatimef
 *.study
-
-# MATLAB files
-*.mat
-*.asv
 
 # The derived tables in data/derived/ ARE tracked on purpose - they are what
 # makes the figures reproducible without the raw data. They are whitelisted
