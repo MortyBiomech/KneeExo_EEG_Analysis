@@ -1,0 +1,3 @@
+[submodule "external/bemobil-pipeline"]
+	path = external/bemobil-pipeline
+	url = https://github.com/BeMoBIL/bemobil-pipeline.git
