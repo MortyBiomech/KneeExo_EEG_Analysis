@@ -22,9 +22,25 @@ clear
 %% Paths
 % Everything comes from the repository config, so this runs from a fresh
 % clone. config/ is always two levels up from code/<stage>/.
-addpath(fullfile(fileparts(fileparts(mfilename('fullpath'))), 'config'));
+% Locate config/, which is always two levels up from code/<stage>/.
+%
+% mfilename is empty when these lines are pasted into the command window,
+% and reports a temporary helper file when a single %% section is run with
+% Ctrl+Enter, so neither case can be trusted. Fall back to this file's own
+% name, which resolves whenever the file is runnable at all.
+thisFile = mfilename('fullpath');
+if isempty(thisFile) || contains(thisFile, 'LiveEditorEvaluationHelper')
+    thisFile = which('run_multimodal_trials');
+end
+if isempty(thisFile)
+    error(['Cannot locate config/. Open run_multimodal_trials.m and press Run, ' ...
+           'or make its folder the current folder first. Pasting the ' ...
+           'bootstrap into the command window gives MATLAB nothing to ' ...
+           'resolve the path from.']);
+end
+addpath(fullfile(fileparts(fileparts(thisFile)), 'config'));
 cfg = kneeexo_config();
-addpath(genpath(cfg.code));
+add_code_paths(cfg);
 
 if isempty(cfg.raw)
     error(['This stage reads the raw XDF recordings, which are not ' ...
@@ -92,17 +108,18 @@ for subject = subjects
 
         EEG = pop_loadset('filename', set_filename, 'filepath', set_filepath);
 
-        % Load the curated flexion/extension events. They come from two
-        % interactive apps and are shipped as derived data, so the study
-        % folder is checked first and the repository second.
-        encoder_file = resolve_derived_file('6_0_Trials_Info_and_Events', ...
-            subject, ['sub-', num2str(subject), '_Trials_encoder_events.mat'], ...
-            cfg.raw);
+        % Load the curated flexion/extension events. They come from the
+        % encoder peak app and are shipped as derived data, in
+        % <cfg.derived>/Events/sub-<N>/ beside the event text table. The
+        % shipped copy is checked first, the working tree second.
+        encoder_file = resolve_derived_file(subject, ...
+            ['sub-', num2str(subject), '_Trials_encoder_events.mat'], ...
+            cfg.trialsEvents);
 
         if isempty(encoder_file)
             error('run_multimodal_trials:NoEncoderEvents', ...
-                ['sub-%d has no curated encoder events, in the study folder ' ...
-                 'or in the repository derived data folder. Copy ' ...
+                ['sub-%d has no curated encoder events, in the shipped ' ...
+                 'derived data or in the working tree. Copy ' ...
                  'sub-%d_Trials_encoder_events.mat into one of them, or run ' ...
                  'run_preprocessing.m for this participant with ' ...
                  'rebuild_events = true. See README.'], subject, subject);

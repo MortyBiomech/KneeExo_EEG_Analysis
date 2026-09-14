@@ -16,7 +16,7 @@ function [EEG, removeindices] = add_events(EEG, output, ...
 %   Events/sub-<N>/events_with_FlxExt.txt      type <tab> latency <tab> desc
 %
 % That file is published with this repository, in
-% derived_data/Events/sub-<N>/. With the default rebuild_events = false the
+% <cfg.derived>/Events/sub-<N>/. With the default rebuild_events = false the
 % function simply imports it, works out the non-experimental segments from
 % it, and returns. Nothing else runs: not the latency computation, not the
 % raw stream concatenation, and above all not the two interactive apps. The
@@ -77,8 +77,8 @@ function [EEG, removeindices] = add_events(EEG, output, ...
     %% Import the published event table and stop there
     if ~rebuild_events
 
-        eventFile = resolve_derived_file('Events', subject_id, ...
-            'events_with_FlxExt.txt', derived_folder);
+        eventFile = resolve_derived_file(subject_id, ...
+            'events_with_FlxExt.txt', fullfile(derived_folder, 'Events'));
 
         if isempty(eventFile)
             error('add_events:NoEventFile', ...
@@ -347,8 +347,15 @@ function [EEG, removeindices] = add_events(EEG, output, ...
     %
     % These are the two manual steps. See the header of this file.
 
-    encoder_folder = fullfile(study_path, '6_0_Trials_Info_and_Events', ...
-        ['sub-', num2str(subject_id)]);
+    % The working location, under cfg.raw. The folder name lives in the
+    % config, not here, so renaming a stage folder is a one-line change.
+    cfgLocal = kneeexo_config();
+    if ~isempty(cfgLocal.raw) && strcmp(study_path, cfgLocal.raw)
+        eventsRoot = cfgLocal.trialsEvents;
+    else
+        eventsRoot = fullfile(study_path, '6_0_Trials_Info_and_Events');
+    end
+    encoder_folder = fullfile(eventsRoot, ['sub-', num2str(subject_id)]);
     encoder_file = fullfile(encoder_folder, ...
         ['sub-', num2str(subject_id), '_Trials_encoder_events.mat']);
 
