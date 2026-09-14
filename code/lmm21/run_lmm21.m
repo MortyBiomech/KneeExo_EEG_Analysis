@@ -78,7 +78,7 @@ add_code_paths(cfg);
 
 % Rebuild the 21 features from the .icatimef files. Needs tier 2. Leave false
 % to use the cached table in data/derived, which is what a reproducer does.
-REBUILD_FEATURES = false;
+REBUILD_FEATURES = true;
 
 L = lmm21_config(cfg);
 

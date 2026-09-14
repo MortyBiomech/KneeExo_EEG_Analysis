@@ -71,6 +71,61 @@ fprintf('        ROIs present but not analysed: %s\n', ...
 nFail = ck(numel(available) == numel(L.clusters(:, 1)) + numel(excluded), ...
     'every ROI is either analysed or accounted for', nFail);
 
+% Component overlap between clusters. The eight clustering solutions are
+% separate runs over the same component set, each seeded at its own ROI, so
+% one component can land in more than one cluster. Where it does, the two
+% clusters are not independent sources and a family of tests containing both
+% counts the same signal twice. This is why Prime_Visual is excluded, and the
+% numbers are recomputed here rather than trusted to a comment.
+comp = containers.Map('KeyType', 'char', 'ValueType', 'any');
+for c = 1:numel(available)
+    e = loaded.SUBJECTS_ICS{c, 2};
+    idx = double(e.Subjects(:));
+    ics = double(e.ICs(:));
+    subjNum = L.subjects(idx);
+    comp(available{c}) = [subjNum(:), ics(:)];
+end
+
+analysed = L.clusters(:, 1).';
+fprintf('\n        component overlap, analysed clusters\n');
+worst = 0;
+for a = 1:numel(analysed)
+    for b = a+1:numel(analysed)
+        n = size(intersect(comp(analysed{a}), comp(analysed{b}), 'rows'), 1);
+        if n > 0
+            frac = n / min(size(comp(analysed{a}), 1), size(comp(analysed{b}), 1));
+            worst = max(worst, frac);
+            fprintf('          %-24s %-24s %d shared (%.0f%%)\n', ...
+                analysed{a}, analysed{b}, n, 100 * frac);
+        end
+    end
+end
+if worst == 0
+    fprintf('          none\n');
+end
+
+% Half is the line: below it two clusters are mostly distinct sources that
+% happen to share a near-midline component, at or above it they are the same
+% source under two names and one of them has to go.
+nFail = ck(worst < 0.5, ...
+    'no two analysed clusters share half their components', nFail);
+
+for c = 1:numel(excluded)
+    fprintf('        %s overlaps:', excluded{c});
+    any_ov = false;
+    for a = 1:numel(analysed)
+        n = size(intersect(comp(excluded{c}), comp(analysed{a}), 'rows'), 1);
+        if n > 0
+            fprintf(' %s %d/%d;', analysed{a}, n, size(comp(excluded{c}), 1));
+            any_ov = true;
+        end
+    end
+    if ~any_ov
+        fprintf(' none');
+    end
+    fprintf('\n');
+end
+
 nFail = ck(strcmp(L.baseline, 'ersp'), ...
     'baseline matches the published ERSPs', nFail);
 nFail = ck(strcmp(L.aggregate, 'trial'), 'observation level is the trial', nFail);

@@ -29,14 +29,30 @@ L.subjects = cfg.subjects;
 
 % The clusters, and the short prefix each contributes to a feature name.
 %
-% SEVEN of the eight ROIs, not all eight. Prime_Visual is left out, which is
-% the composition the earlier whole-brain table used and the only one that
-% gives the 21 features the manuscript states. The exclusion is historical
-% rather than principled, so it is a decision to confirm rather than a fact:
-% adding Prime_Visual gives 24 features, changes the correction, and means
-% changing "21" everywhere in the Results and Methods. Whichever way it goes,
-% it has to be stated in the Methods, because a reader comparing this list
-% against ersp_params.roiStudyFiles will count eight.
+% SEVEN of the eight ROIs, not all eight. Prime_Visual is excluded because it
+% is not an independent source: 7 of its 12 components are the same
+% (participant, IC) pairs that Right_Parieto_Occipital already contributes.
+%
+% The eight clustering solutions are separate runs over the same component
+% set, each seeded at its own ROI, so one component can land in more than one
+% of them. A family of tests carrying the same signal twice is not 24 tests of
+% 24 sources; it is 21 sources with three of them counted twice, and the
+% Benjamini and Hochberg correction would then describe a family the data do
+% not have. Adding a redundant cluster makes the correction look stricter
+% while adding no new evidence.
+%
+% Prime_Visual shares nothing with Left_Parieto_Occipital, so the redundancy
+% is specifically with the right-hemisphere cluster.
+%
+% One overlap survives among the seven kept here: participant 11's IC 29 sits
+% in both Left_PreMot_SuppMot and Right_PreMot_SuppMot, one of eight
+% components in each. A single equivalent dipole cannot be in both
+% hemispheres, so this is a near-midline component that two differently
+% seeded runs both claimed. At one in eight it is a caveat for the Methods
+% rather than a reason to drop a cluster.
+%
+% CHECKS/CHECK_LMM21 recomputes every overlap on each run and prints it, so
+% these numbers cannot go stale in a comment.
 L.clusters = { ...
     'Left_Prim_Motor',         'LM1',   'left primary motor'; ...
     'Right_Prim_Motor',        'RM1',   'right primary motor'; ...

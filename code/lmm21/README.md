@@ -35,13 +35,27 @@ stage 7 FDR family cannot drift apart: theta 4 to 8, alpha 8 to 14, beta 14 to
 30 Hz. Lower edge inclusive, upper edge exclusive, as in `coupling_config`, so
 adjacent bands never share a bin.
 
-**`Prime_Visual` is excluded.** `ersp_params.roiStudyFiles` lists eight ROIs;
-this analysis uses seven. Seven times three is the 21 the manuscript states, and
-it is the composition the earlier whole-brain table used, but the reason is
-historical rather than principled. Including it gives 24 features, changes the
-correction, and means changing the number everywhere in the Results and Methods.
-Either way, the Methods has to say which, because a reader who counts the ROIs
-will get eight. `check_lmm21` prints what is left out on every run.
+**`Prime_Visual` is excluded, because it is not an independent source.** Seven
+of its twelve components are the same (participant, IC) pairs that
+`Right_Parieto_Occipital` contributes. The eight clustering solutions are
+separate runs over the same component set, each seeded at its own ROI, so a
+component can land in more than one of them. A family carrying the same signal
+twice is not 24 tests of 24 sources; it is 21 sources with three of them counted
+twice, and the Benjamini-Hochberg correction would then describe a family the
+data do not have. A redundant cluster makes the correction look stricter while
+adding no evidence.
+
+`Prime_Visual` shares nothing with `Left_Parieto_Occipital`, so the redundancy
+is with the right-hemisphere cluster specifically.
+
+One overlap survives among the seven kept: participant 11's IC 29 is in both
+`Left_PreMot_SuppMot` and `Right_PreMot_SuppMot`, one of eight components in
+each. A single equivalent dipole cannot sit in both hemispheres, so this is a
+near-midline component that two differently seeded runs both claimed. At one in
+eight it belongs in the Methods as a caveat, not as a reason to drop a cluster.
+
+`check_lmm21` recomputes every overlap on each run and prints it, so none of
+these numbers can go stale here.
 
 ## The feature
 
