@@ -2,7 +2,7 @@ function cfg = kneeexo_config()
 % KNEEEXO_CONFIG  Single source of truth for every path and constant.
 %
 %   cfg = kneeexo_config();
-%   load(fullfile(cfg.derived, 'behavior_table.mat'));
+%   load(fullfile(cfg.derived, 'behaviour_table.mat'));
 %
 % In the original working tree each script hardcoded its own absolute paths,
 % 231 of them across 82 files, under two different drive roots. That made the
@@ -22,21 +22,42 @@ function cfg = kneeexo_config()
 % HOW A SCRIPT REACHES THIS FUNCTION
 % ----------------------------------
 % Every entry point lives in code/<stage>/, so config/ is always two levels up
-% and then across. Each one starts with the same three lines:
+% and then across. Each one starts with the same block:
 %
-%     addpath(fullfile(fileparts(fileparts(mfilename('fullpath'))), 'config'));
+%     thisFile = mfilename('fullpath');
+%     if isempty(thisFile) || contains(thisFile, 'LiveEditorEvaluationHelper')
+%         thisFile = which('<this file''s name>');
+%     end
+%     addpath(fullfile(fileparts(fileparts(thisFile)), 'config'));
 %     cfg = kneeexo_config();
-%     addpath(genpath(cfg.code));
+%     add_code_paths(cfg);
+%
+% The guard matters. mfilename returns empty at the command prompt, and the
+% path of a temporary helper file when a single %% section is run with
+% Ctrl+Enter, so neither can be trusted on its own.
 %
 % That works whether the script is run with F5 from its own folder or called
 % from anywhere else, and it needs no manual addpath beforehand.
+%
+% add_code_paths adds code/ minus archive/, which must never be on the path.
+% The two stages that need the BeMoBIL pipeline ask for it explicitly, with
+% add_code_paths(cfg, 'bemobil').
 
+    % This file is at <repo>/code/config/kneeexo_config.m, so the code folder
+    % is one level up and the repository root is two. Derive both from the
+    % file rather than counting fileparts calls by hand, which is how an
+    % earlier version ended up treating the code folder as the root and
+    % looking for external/ inside it.
     thisFile = mfilename('fullpath');
-    cfg.root = fileparts(fileparts(thisFile));   % repository root
+    cfg.code = fileparts(fileparts(thisFile));   % <repo>/code
+    cfg.root = fileparts(cfg.code);              % <repo>
 
 
     %% Repository-internal paths, no editing needed
-    cfg.code    = fullfile(cfg.root, 'code');
+    % Note the two different "figures": cfg.figures is where figure FILES are
+    % written, at the repository root. The code that writes them is in
+    % code/figures, which is inside cfg.code. Outputs never go in the code
+    % tree.
     cfg.derived = fullfile(cfg.root, 'data', 'derived');
     cfg.figures = fullfile(cfg.root, 'figures');
     cfg.docs    = fullfile(cfg.root, 'docs');
@@ -77,13 +98,18 @@ function cfg = kneeexo_config()
         cfg.timeFreq       = fullfile(cfg.raw, '10_Time_Frequency_Analysis');
 
         % Epoched datasets carrying EEG.timewarp, written by
-        % precompute/epoching_timewarp.m. The ERSP precompute writes each
+        % precompute/run_epoching_timewarp.m. The ERSP precompute writes each
         % participant's .icatimef file into this same folder, because
         % std_ersp builds its output name from STUDY.datasetinfo.filepath.
         cfg.epoched      = fullfile(cfg.singleSubj, 'Epoched_data');
 
         % STUDY files and clustering solutions for the epoched data.
         cfg.studyEpoched = fullfile(cfg.study, 'Epoched_data');
+
+        % Master tables for the behaviour branch: one row per raw epoch for
+        % EMG and for tracking, plus the trial-level behaviour table built
+        % from them. Written by code/behaviour/run_build_masters.m.
+        cfg.masters = fullfile(cfg.raw, '7_Master_Tables');
 
         % Per-subject EMG intermediates. The original code wrote these next to
         % the source files, inside the code tree; they are derived, per
@@ -100,9 +126,17 @@ function cfg = kneeexo_config()
     cfg.eeglab    = pick(local, 'eeglab',    locate('eeglab.m',      ''));
     cfg.fieldtrip = pick(local, 'fieldtrip', locate('ft_defaults.m', ''));
     cfg.xdf       = pick(local, 'xdf',       locate('load_xdf.m',    ''));
-    cfg.bemobil   = pick(local, 'bemobil',   locate( ...
-        'bemobil_process_all_EEG_preprocessing.m', ...
-        fullfile(cfg.code, 'vendor', 'bemobil-pipeline')));
+
+    % BeMoBIL is a git submodule under external/, NOT a copy in vendor/. Only
+    % the one function we modified lives in vendor/; the rest of the pipeline
+    % runs unmodified, so it is pinned by commit instead of duplicated. The
+    % folder sits outside code/ on purpose: add_code_paths calls
+    % genpath(cfg.code), and a toolbox tree inside that would be added to the
+    % path in every stage whether or not the stage uses it.
+    %
+    % An empty folder means the submodule was never checked out:
+    %     git submodule update --init
+    cfg.bemobil = pick(local, 'bemobil', locate_bemobil(cfg));
 
 
     %% Participants
@@ -149,6 +183,45 @@ function v = pick(local, field, fallback)
     else
         v = fallback;
     end
+
+end
+
+
+% ------------------------------------------------------------------------
+function p = locate_bemobil(cfg)
+% Find BeMoBIL, but never accept a copy that lives inside the analysis code.
+%
+% Plain which() is not safe here. If a copy of the pipeline sits somewhere
+% under code/, which() finds it, cfg.bemobil then points at it, and
+% add_code_paths puts the whole tree on the path in the two stages that ask
+% for BeMoBIL. That is the situation the external/ placement exists to
+% prevent, and it is easy to create by accident: an in-tree copy is added by
+% genpath(cfg.code) in EVERY stage, whether or not the stage wanted it, and
+% it shadows the submodule.
+
+    fallback = fullfile(cfg.root, 'external', 'bemobil-pipeline');
+
+    w = which('bemobil_process_all_EEG_preprocessing');
+    if isempty(w)
+        p = fallback;
+        return
+    end
+
+    found = fileparts(w);
+
+    if startsWith(lower(found), lower(cfg.code))
+        warning('kneeexo_config:BemobilInsideCode', ...
+            ['A copy of the BeMoBIL pipeline is inside the analysis code:\n' ...
+             '  %s\nIt is being ignored in favour of\n  %s\n\nCompare the ' ...
+             'two and delete the in-tree copy. While it is there it goes on ' ...
+             'the path in every stage and shadows the pinned submodule, so ' ...
+             'which() can disagree with what the repository claims to use.'], ...
+            found, fallback);
+        p = fallback;
+        return
+    end
+
+    p = found;
 
 end
 

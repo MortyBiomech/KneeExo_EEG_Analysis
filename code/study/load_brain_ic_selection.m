@@ -27,19 +27,21 @@ function ICs = load_brain_ic_selection(subject_list, selection_folder)
 %        <folder>/sub-<N>/Brain_ICs_50percentUp - Accepted_potential_Brain_ICs - sub-<N>.mat
 %      each holding brain_ICs = { column1, column3 }
 %
-% If selection_folder is omitted, the repository's
-% derived_data/brain_ic_selection/ is used.
+% If selection_folder is omitted, cfg.derived/brain_ic_selection is used.
 
     if nargin < 2 || isempty(selection_folder)
-        cfgFile = which('kneeexo_config');
-        if isempty(cfgFile)
+        if isempty(which('kneeexo_config'))
             error('load_brain_ic_selection:NoConfig', ...
                 ['config/kneeexo_config.m is not on the MATLAB path, so the ' ...
-                 'repository root cannot be found. Pass selection_folder ' ...
+                 'derived data folder cannot be found. Pass selection_folder ' ...
                  'explicitly.']);
         end
-        repoRoot = fileparts(fileparts(cfgFile));
-        selection_folder = fullfile(repoRoot, 'derived_data', 'brain_ic_selection');
+        % Ask the config rather than deriving the root here. An earlier
+        % version counted fileparts calls itself, got the level wrong, and
+        % looked under a folder name (derived_data) that the config does not
+        % use.
+        cfg = kneeexo_config();
+        selection_folder = fullfile(cfg.derived, 'brain_ic_selection');
     end
 
     nSets = numel(subject_list);

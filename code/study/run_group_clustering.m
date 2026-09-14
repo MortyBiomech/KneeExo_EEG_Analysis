@@ -18,9 +18,25 @@ clear
 
 %% Paths
 % config/ is always two levels up from code/<stage>/.
-addpath(fullfile(fileparts(fileparts(mfilename('fullpath'))), 'config'));
+% Locate config/, which is always two levels up from code/<stage>/.
+%
+% mfilename is empty when these lines are pasted into the command window,
+% and reports a temporary helper file when a single %% section is run with
+% Ctrl+Enter, so neither case can be trusted. Fall back to this file's own
+% name, which resolves whenever the file is runnable at all.
+thisFile = mfilename('fullpath');
+if isempty(thisFile) || contains(thisFile, 'LiveEditorEvaluationHelper')
+    thisFile = which('run_group_clustering');
+end
+if isempty(thisFile)
+    error(['Cannot locate config/. Open run_group_clustering.m and press Run, ' ...
+           'or make its folder the current folder first. Pasting the ' ...
+           'bootstrap into the command window gives MATLAB nothing to ' ...
+           'resolve the path from.']);
+end
+addpath(fullfile(fileparts(fileparts(thisFile)), 'config'));
 cfg = kneeexo_config();
-addpath(genpath(cfg.code));
+add_code_paths(cfg, 'bemobil');   % this stage needs the BeMoBIL pipeline
 
 if isempty(cfg.raw)
     error(['This stage reads the epoched single-subject datasets. ' ...
