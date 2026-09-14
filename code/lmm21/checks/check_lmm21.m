@@ -1,67 +1,92 @@
 function nFail = check_lmm21()
-%CHECK_LMM21  Acceptance test for the 21 feature LMM code.
+%CHECK_LMM21  Acceptance test for the trial-level cortical LMM.
 %
-%  nFail = CHECK_LMM21() runs every check that does not need the data on
-%  disk. Run it once after moving the code, and again whenever any of these
-%  files is edited. It takes about a minute, most of it in the synthetic
-%  model recovery.
+%   NFAIL = CHECK_LMM21() runs every check that does not need tier 2. It takes
+%   about a minute, most of it in the synthetic model recovery at the end. Run
+%   it after moving the code and after editing any of these files.
 %
-%  What is checked
-%    1. The configuration really describes 21 features, with unique names.
-%    2. bh_fdr against a brute force implementation of the definition.
-%    3. within_subject_scale, including the guards the old helpers lacked.
-%    4. icatimef_band_features against a brute force loop, and the two
-%       properties that matter scientifically: a common baseline preserves
-%       trial to trial variation and a single trial baseline destroys it.
-%    5. The model recovers a planted coefficient, and returns an honest null
-%       when there is nothing there.
+%   WHAT IS CHECKED
+%     1  the configuration describes 21 features, with names, bands and
+%        clusters that agree with cfg and with SUBJECTS_ICS
+%     2  BH_FDR against a brute force implementation of the definition
+%     3  WITHIN_SUBJECT_SCALE, including the guards the old helpers lacked
+%     4  LMM21_TRIAL_FEATURES against a brute force loop, and the two baseline
+%        properties the analysis turns on
+%     5  the model recovers a planted coefficient and returns an honest null
+%        when there is nothing there
 %
-%  What is not checked, because it needs your files
-%    the pairing map, the cluster membership file and the behaviour table.
-%    Those three adapters are exercised by the first real run, and the audit
-%    table from build_eeg_feature_table is what tells you they worked.
+%   WHAT IS NOT CHECKED, because it needs tier 2: the reading of the .icatimef
+%   files and the epoch pairing. The audit table from BUILD_LMM21_FEATURES is
+%   what covers those, and CHECKS/EPOCH_PAIRING_CHECK covers the pairing itself.
+%
+%   See also LMM21_CONFIG, LMM21_TRIAL_FEATURES, EPOCH_PAIRING_CHECK.
+%
+%   Part of the KneeExo-EEG analysis code.
+
+thisFile = mfilename('fullpath');
+if isempty(thisFile) || contains(thisFile, 'LiveEditorEvaluationHelper')
+    thisFile = which('check_lmm21');
+end
+addpath(fullfile(fileparts(fileparts(fileparts(thisFile))), 'config'));
+cfg = kneeexo_config();
+add_code_paths(cfg);
 
 nFail = 0;
 fprintf('\n');
 
-% =========================================================================
+
+%% 1. Configuration
 fprintf('--- configuration ---\n');
-cfg = lmm21_config();
+L = lmm21_config(cfg);
 
-nFail = ck(numel(cfg.clusters) * numel(cfg.bands) == 21, ...
-    'clusters times bands is 21', nFail);
+nFail = ck(L.nFeatures == 21, 'clusters times bands is 21', nFail);
 
-abbr = {cfg.clusters.abbr};
-nFail = ck(numel(unique(abbr)) == numel(abbr), 'cluster abbreviations unique', nFail);
+names = lmm21_feature_names(L);
+nFail = ck(numel(names) == 21, 'the name list has 21 entries', nFail);
+nFail = ck(numel(unique(names)) == 21, 'feature names are unique', nFail);
+nFail = ck(all(cellfun(@isvarname, names)), ...
+    'feature names are valid identifiers', nFail);
 
-names = {};
-for c = 1:numel(cfg.clusters)
-    for b = 1:numel(cfg.bands)
-        names{end+1} = sprintf('%s_%s', cfg.clusters(c).abbr, cfg.bands(b).name); %#ok<AGROW>
-    end
+% The bands must be the ones the rest of the pipeline uses, not a second
+% definition that has drifted.
+for b = 1:numel(L.bandNames)
+    nm = L.bandNames{b};
+    nFail = ck(isequal(L.bands.(nm), cfg.bands.(nm)), ...
+        sprintf('band %s matches cfg.bands', nm), nFail);
 end
-nFail = ck(numel(unique(names)) == 21, 'feature names unique', nFail);
-nFail = ck(all(cellfun(@isvarname, names)), 'feature names are valid identifiers', nFail);
 
-edges = vertcat(cfg.bands.edges);
-nFail = ck(all(edges(:, 1) < edges(:, 2)), 'band edges ascend', nFail);
-nFail = ck(all(diff(edges(:, 1)) > 0), 'bands listed in ascending order', nFail);
+% The cluster names must exist in the mapping file, otherwise the first real
+% run fails halfway through.
+loaded = load(L.files.clusterIC, 'SUBJECTS_ICS');
+available = loaded.SUBJECTS_ICS(:, 1).';
+for c = 1:size(L.clusters, 1)
+    nFail = ck(any(strcmp(available, L.clusters{c, 1})), ...
+        sprintf('cluster %s is in SUBJECTS_ICS', L.clusters{c, 1}), nFail);
+end
 
-nFail = ck(~cfg.feature.trialBaseline, ...
-    'baseline is common, not single trial', nFail);
+% And the exclusion has to be deliberate, so say out loud what is left out.
+excluded = setdiff(available, L.clusters(:, 1).');
+fprintf('        ROIs present but not analysed: %s\n', ...
+    strjoin(excluded, ', '));
+nFail = ck(numel(available) == numel(L.clusters(:, 1)) + numel(excluded), ...
+    'every ROI is either analysed or accounted for', nFail);
 
-specKeys = {cfg.specs.key};
-nFail = ck(ismember(cfg.primarySpec, specKeys), 'primary spec exists', nFail);
+nFail = ck(strcmp(L.baseline, 'ersp'), ...
+    'baseline matches the published ERSPs', nFail);
+nFail = ck(strcmp(L.aggregate, 'trial'), 'observation level is the trial', nFail);
+nFail = ck(any(strcmp({L.specs.key}, L.primarySpec)), ...
+    'the primary specification exists', nFail);
 
-% =========================================================================
+
+%% 2. bh_fdr
 fprintf('\n--- bh_fdr ---\n');
 rng(11);
 p = [rand(18, 1); 0.0005; 0.02; 0.049];
 
-q  = bh_fdr(p);
-qb = bruteBH(p);
-nFail = ck(max(abs(q - qb)) < 1e-12, 'matches the definition, computed directly', nFail);
-nFail = ck(all(q >= p - 1e-15), 'adjusted never below raw', nFail);
+q = bh_fdr(p);
+nFail = ck(max(abs(q - brute_bh(p))) < 1e-12, ...
+    'matches the definition computed directly', nFail);
+nFail = ck(all(q >= p - 1e-15), 'adjusted is never below raw', nFail);
 
 [~, ord] = sort(p);
 nFail = ck(all(diff(q(ord)) >= -1e-15), 'monotone in p', nFail);
@@ -76,9 +101,11 @@ nFail = ck(abs(bh_fdr(0.03) - 0.03) < 1e-15, 'm = 1 leaves p alone', nFail);
 nFail = ck(max(abs(bh_fdr([0.2; 0.2; 0.2]) - 0.2)) < 1e-15, 'ties handled', nFail);
 
 [~, crit, nRej] = bh_fdr([0.001; 0.008; 0.039; 0.041; 0.9], 0.05);
-nFail = ck(nRej == 2 && abs(crit - 0.008) < 1e-15, 'critical value and count', nFail);
+nFail = ck(nRej == 2 && abs(crit - 0.008) < 1e-15, ...
+    'critical value and rejection count', nFail);
 
-% =========================================================================
+
+%% 3. within_subject_scale
 fprintf('\n--- within_subject_scale ---\n');
 g = repelem((1:2)', 6);
 x = [1; 2; 3; 4; 5; 6; 10; 20; 30; 40; 50; 60];
@@ -90,15 +117,15 @@ nFail = ck(max(abs(z(1:6) - z(7:12))) < 1e-12, ...
     'z removes a per participant scale difference', nFail);
 
 c = within_subject_scale(x, g, 'center', 5);
-nFail = ck(abs(std(c(7:12)) - std(x(7:12))) < 1e-12, 'centring keeps the unit', nFail);
-nFail = ck(isequal(within_subject_scale(x, g, 'raw'), x), 'raw passes through', nFail);
+nFail = ck(abs(std(c(7:12)) - std(x(7:12))) < 1e-12, ...
+    'centring keeps the unit', nFail);
+nFail = ck(isequal(within_subject_scale(x, g, 'raw'), x), ...
+    'raw passes through', nFail);
 
-zs = within_subject_scale([1; 2; 3; 1; 2; 3; 4; 5; 6], ...
-                          [1; 1; 1; 2; 2; 2; 2; 2; 2], 'z', 5);
+zs = within_subject_scale([1;2;3;1;2;3;4;5;6], [1;1;1;2;2;2;2;2;2], 'z', 5);
 nFail = ck(all(isnan(zs(1:3))) && all(isfinite(zs(4:9))), ...
     'a participant below the minimum trial count is set to NaN', nFail);
-
-nFail = ck(all(isnan(within_subject_scale(7 * ones(6, 1), ones(6, 1), 'z', 5))), ...
+nFail = ck(all(isnan(within_subject_scale(7*ones(6,1), ones(6,1), 'z', 5))), ...
     'a constant participant is NaN, not a column of zeros', nFail);
 
 xn = x; xn(2) = NaN;
@@ -108,70 +135,112 @@ nFail = ck(isnan(zn(2)) && all(isfinite(zn([1 3 4 5 6]))), ...
 nFail = ck(abs(mean(zn([1 3 4 5 6]))) < 1e-12, ...
     'the NaN row is left out of the mean', nFail);
 
-% =========================================================================
-fprintf('\n--- icatimef_band_features ---\n');
-freqs = 1:0.5:40;
-times = -500:10:3500;
-nE = 30;
-bands = struct('name', {'theta', 'alpha', 'beta'}, 'edges', {[4 8], [8 13], [13 30]});
+
+%% 4. lmm21_trial_features
+fprintf('\n--- lmm21_trial_features ---\n');
+freqs = logspace(log10(3), log10(130), 250);
+nT = 135;
+nEp = 60;
+bands = L.bands;
 
 rng(3);
-P = 1 + rand(numel(freqs), numel(times), nE);
-cycWin  = [0 3000];
-baseWin = [0 600];
+P = 1 + rand(numel(freqs), nT, nEp);
 
-[ratio, info] = icatimef_band_features(P, freqs, times, bands, cycWin, baseWin, false);
-[rRef, bRef]  = bruteBandFeatures(P, freqs, times, bands, cycWin, baseWin);
+% Twenty trials of three cycles, and a condition per trial rather than per
+% epoch, so no trial can straddle two conditions by accident. Seven, seven and
+% six trials, deliberately unequal, because an equal split would make a
+% condition-balanced baseline and a trial-weighted one identical and the
+% balance test below would pass either way.
+epTrial   = repelem((1:20)', 3);
+trialCond = [repmat([1; 3; 6], 6, 1); 1; 3];
+epCond    = trialCond(epTrial);
 
-nFail = ck(max(abs(info.baseline - bRef)) < 1e-12, ...
-    'common baseline averages over time and epochs', nFail);
-nFail = ck(max(abs(ratio(:) - rRef(:))) < 1e-10, ...
-    'ratio equals the brute force band by cycle mean', nFail);
-nFail = ck(isequal(info.nFreqBins(:)', [9 11 35]), ...
-    'band edges are inclusive at both ends', nFail);
+out = lmm21_trial_features(P, freqs, epTrial, epCond, bands, ...
+    'applyQC', false, 'baseline', 'ersp');
 
-% The property the whole design turns on.
-P0 = repmat(P(:, :, 1), [1 1 nE]);
-gain = linspace(0.5, 2, nE);
-Pg = P0 .* reshape(gain, 1, 1, nE);
+[refFeat, refB] = brute_features(P, freqs, epTrial, epCond, bands);
+nFail = ck(max(abs(out.baseline - refB)) < 1e-12, ...
+    'baseline equals the brute force condition-balanced mean', nFail);
+nFail = ck(max(abs(out.feature(:) - refFeat(:))) < 1e-10, ...
+    'feature equals the brute force band by cycle mean', nFail);
+nFail = ck(numel(out.trial) == 20 && all(out.nEpochs == 3), ...
+    'cycles are aggregated to trials', nFail);
 
-r0 = icatimef_band_features(P0, freqs, times, bands, cycWin, baseWin, false);
-rg = icatimef_band_features(Pg, freqs, times, bands, cycWin, baseWin, false);
-nFail = ck(max(abs(rg(:) - reshape(r0 .* (gain(:) / mean(gain)), [], 1))) < 1e-10, ...
-    'a common baseline passes trial level variation through', nFail);
+% Bands must not share a frequency bin, because the edges in cfg.bands touch
+% at 8 and 14 Hz.
+nAlpha = nnz(freqs >= bands.alpha(1) & freqs < bands.alpha(2));
+nBeta  = nnz(freqs >= bands.beta(1)  & freqs < bands.beta(2));
+nFail = ck(out.nBandBins(2) == nAlpha && out.nBandBins(3) == nBeta, ...
+    'band membership uses an exclusive upper edge', nFail);
+nFail = ck(nnz(freqs >= bands.alpha(1) & freqs < bands.alpha(2) & ...
+               freqs >= bands.beta(1)  & freqs < bands.beta(2)) == 0, ...
+    'adjacent bands share no frequency bin', nFail);
 
-rt = icatimef_band_features(Pg, freqs, times, bands, cycWin, baseWin, true);
-nFail = ck(std(rt(:, 2)) < 1e-12, ...
-    'a single trial baseline destroys trial level variation', nFail);
+% The property the whole design turns on. Identical epochs scaled by a known
+% per-epoch gain must come through the common baseline as exactly that gain,
+% referred to the balanced mean gain.
+gain = linspace(0.5, 2, nEp);
+P0 = repmat(P(:, :, 1), [1 1 nEp]);
+Pg = P0 .* reshape(gain, 1, 1, nEp);
 
-lin = 10 * log10(mean(ratio(:, 2)));
-dbm = mean(10 * log10(ratio(:, 2)));
-nFail = ck(lin > dbm && abs(lin - dbm) > 1e-6, ...
-    'mean then log differs from log then mean, and is larger', nFail);
+o0 = lmm21_trial_features(P0, freqs, epTrial, epCond, bands, ...
+    'applyQC', false, 'baseline', 'ersp');
+og = lmm21_trial_features(Pg, freqs, epTrial, epCond, bands, ...
+    'applyQC', false, 'baseline', 'ersp');
 
-Pn = P; Pn(5, 10, 3) = NaN;
-nFail = ck(all(isfinite(icatimef_band_features(Pn, freqs, times, bands, ...
-    cycWin, baseWin, false)), 'all'), 'one NaN bin does not kill an epoch', nFail);
+nFail = ck(std(o0.feature(:, 2)) < 1e-9, ...
+    'identical epochs give identical features', nFail);
+nFail = ck(std(og.feature(:, 2)) > 0.5, ...
+    'a common baseline passes trial-level variation through', nFail);
 
-nFail = ck(errors(@() icatimef_band_features(P, freqs, times, bands, ...
-    [9000 9100], baseWin, false)), 'a cycle window off the axis errors', nFail);
-nFail = ck(errors(@() icatimef_band_features(P, freqs, times, ...
-    struct('name', {'x'}, 'edges', {[200 300]}), cycWin, baseWin, false)), ...
-    'a band off the axis errors', nFail);
+conds = unique(epCond);
+gBal = mean(arrayfun(@(c) mean(gain(epCond == c)), conds));
+trialGain = arrayfun(@(t) mean(gain(epTrial == t)), (1:20)');
+nFail = ck(max(abs(og.feature(:, 2) - ...
+    (o0.feature(:, 2) + 10 * log10(trialGain / gBal)))) < 1e-9, ...
+    'and does so by exactly the trial gain over the balanced mean gain', nFail);
 
-% =========================================================================
+% Condition balance: adding trials to one condition must not move the
+% baseline. Duplicating the condition-6 epochs is the test, and a
+% trial-weighted baseline would fail it, which is checked too so the test is
+% known to have teeth.
+sel6 = find(epCond == 6);
+P2 = cat(3, P, P(:, :, sel6));
+t2 = [epTrial; epTrial(sel6) + 100];
+c2 = [epCond; epCond(sel6)];
+o2 = lmm21_trial_features(P2, freqs, t2, c2, bands, ...
+    'applyQC', false, 'baseline', 'ersp');
+nFail = ck(max(abs(o2.baseline - out.baseline)) < 1e-12, ...
+    'the baseline is condition balanced, not trial weighted', nFail);
+nFail = ck(max(abs(mean(mean(P2, 3), 2) - out.baseline)) > 1e-6, ...
+    'and a trial-weighted baseline really would have moved', nFail);
+
+% Mean then log is not log then mean.
+od = lmm21_trial_features(P, freqs, epTrial, epCond, bands, ...
+    'applyQC', false, 'baseline', 'ersp', 'aggSpace', 'db');
+nFail = ck(all(out.feature(:) >= od.feature(:) - 1e-12), ...
+    'the arithmetic mean is never below the geometric one', nFail);
+
+nFail = ck(errors(@() lmm21_trial_features(P, freqs, epTrial, epCond, ...
+    struct('none', [200 300]), 'applyQC', false)), ...
+    'a band off the frequency axis errors', nFail);
+
+mixed = epCond; mixed(1) = 99;
+nFail = ck(errors(@() lmm21_trial_features(P, freqs, epTrial, mixed, bands, ...
+    'applyQC', false)), 'a trial spanning two conditions errors', nFail);
+
+
+%% 5. Model recovery
 fprintf('\n--- model recovery ---\n');
 if isempty(ver('stats'))
     fprintf('  SKIP  Statistics and Machine Learning Toolbox not available\n');
 else
-    [okPlant, okNull, okBound] = modelRecovery(cfg);
-    nFail = ck(okPlant, 'a planted effect is recovered and survives FDR', nFail);
-    nFail = ck(okNull,  'pure noise gives no survivor out of 21', nFail);
-    nFail = ck(okBound, 'the interval covers the truth', nFail);
+    nFail = model_recovery(L, nFail);
 end
 
-% =========================================================================
-fprintf('\n%s\n', repmat('-', 1, 40));
+
+%% Done
+fprintf('\n%s\n', repmat('-', 1, 44));
 if nFail == 0
     fprintf('ALL CHECKS PASSED\n\n');
 else
@@ -180,29 +249,37 @@ end
 
 end
 
-% =========================================================================
+
+% ----------------------------------------------------------------------------
 function n = ck(cond, name, n)
+
 if cond
     fprintf('  PASS  %s\n', name);
 else
     fprintf('  FAIL  %s\n', name);
     n = n + 1;
 end
+
 end
 
-% -------------------------------------------------------------------------
+
+% ----------------------------------------------------------------------------
 function tf = errors(fn)
+
 tf = false;
 try
     fn();
 catch
     tf = true;
 end
+
 end
 
-% -------------------------------------------------------------------------
-function q = bruteBH(p)
-% The definition, written out, with no shortcuts.
+
+% ----------------------------------------------------------------------------
+function q = brute_bh(p)
+%BRUTE_BH  The definition, written out, with no shortcuts.
+
 m = numel(p);
 [ps, ord] = sort(p(:));
 adj = zeros(m, 1);
@@ -216,57 +293,72 @@ end
 q = zeros(m, 1);
 q(ord) = adj;
 q = reshape(q, size(p));
+
 end
 
-% -------------------------------------------------------------------------
-function [ratio, B] = bruteBandFeatures(P, freqs, times, bands, cycWin, baseWin)
-nF = numel(freqs);
-nE = size(P, 3);
-cycIdx  = find(times >= cycWin(1)  & times <= cycWin(2));
-baseIdx = find(times >= baseWin(1) & times <= baseWin(2));
 
+% ----------------------------------------------------------------------------
+function [feat, B] = brute_features(P, freqs, epTrial, epCond, bands)
+%BRUTE_FEATURES  The feature definition with explicit loops.
+
+conds = unique(epCond);
+nF = numel(freqs);
+
+meanTF = cell(1, numel(conds));
+for c = 1:numel(conds)
+    meanTF{c} = mean(P(:, :, epCond == conds(c)), 3);
+end
 B = zeros(nF, 1);
 for f = 1:nF
-    acc = [];
-    for e = 1:nE
-        acc = [acc, reshape(P(f, baseIdx, e), 1, [])]; %#ok<AGROW>
+    acc = 0;
+    for c = 1:numel(conds)
+        acc = acc + mean(meanTF{c}(f, :));
     end
-    B(f) = mean(acc);
+    B(f) = acc / numel(conds);
 end
 
-ratio = zeros(nE, numel(bands));
-for b = 1:numel(bands)
-    fIdx = find(freqs >= bands(b).edges(1) & freqs <= bands(b).edges(2));
-    for e = 1:nE
+names = fieldnames(bands);
+uT = unique(epTrial);
+feat = zeros(numel(uT), numel(names));
+
+for b = 1:numel(names)
+    e = bands.(names{b});
+    fIdx = find(freqs >= e(1) & freqs < e(2));
+    for t = 1:numel(uT)
+        eps = find(epTrial == uT(t));
         acc = [];
-        for f = fIdx
-            acc = [acc, reshape(P(f, cycIdx, e), 1, []) / B(f)]; %#ok<AGROW>
+        for k = 1:numel(eps)
+            v = [];
+            for f = fIdx
+                v = [v, P(f, :, eps(k)) / B(f)]; %#ok<AGROW>
+            end
+            acc(k) = mean(v); %#ok<AGROW>
         end
-        ratio(e, b) = mean(acc);
+        feat(t, b) = 10 * log10(mean(acc));
     end
 end
+
 end
 
-% -------------------------------------------------------------------------
-function [okPlant, okNull, okBound] = modelRecovery(cfg)
-%MODELRECOVERY  Plant a known effect in synthetic data and get it back.
+
+% ----------------------------------------------------------------------------
+function nFail = model_recovery(L, nFail)
+%MODEL_RECOVERY  Plant a known effect in synthetic data and get it back.
 %
-%  14 participants, 120 trials each, three pressure levels. The rating is
-%  built from a pressure effect, an effort effect, an error effect, a
-%  participant intercept and noise, plus one cortical feature that genuinely
-%  contributes. The other 20 features are noise with the same variance.
+%   Fourteen participants, 120 trials, three conditions. One feature genuinely
+%   contributes, twenty are noise of the same variance.
 %
-%  This does not validate the science. It validates that the scaling, the
-%  formula, the Wald test and the correction are wired up the right way
-%  round, which is the part that silently produced nonsense last time.
+%   This does not validate the science. It validates that the scaling, the
+%   formula, the Wald test and the correction are wired the right way round,
+%   which is the part that silently produced nonsense last time.
 
 rng(2026);
 
 nSub = 14;
 nTri = 120;
-bTrue = 0.30;              % rating points per within participant SD
+bTrue = 0.30;
 
-sub = repelem((1:nSub)', nTri);
+sub   = repelem((1:nSub)', nTri);
 press = repmat(repelem([1; 3; 6], nTri / 3), nSub, 1);
 
 subInt = randn(nSub, 1) * 1.2;
@@ -281,39 +373,38 @@ score = 1.5 + 1.2 * press + subInt(sub) + 0.25 * effort + 0.05 * err + ...
 
 T = table();
 T.SubjectID   = sub;
-T.RawTrial    = repmat((1:nTri)', nSub, 1);
-T.Pressure    = press;
 T.Score       = score;
 T.Error       = err;
 T.EffortIndex = effort;
+T.Subject_cat = categorical(sub);
+T.Pressure_cat = reordercats(categorical(press, [1 3 6], ...
+    {'Low', 'Medium', 'High'}), {'Low', 'Medium', 'High'});
 
-F = T(:, {'SubjectID', 'RawTrial'});
-featNames = cell(1, 21);
-for k = 1:21
-    featNames{k} = sprintf('f%02d', k);
-end
-F.(featNames{1}) = signal;
+names = lmm21_feature_names(L);
+T.(names{1}) = signal;
 for k = 2:21
-    F.(featNames{k}) = noise(:, k - 1);
+    T.(names{k}) = noise(:, k - 1);
 end
 
-localCfg = cfg;
-localCfg.paths.out = '';
-localCfg.verbose   = false;
-localCfg.specs     = cfg.specs(strcmp({cfg.specs.key}, cfg.primarySpec));
+Lr = L;
+Lr.specs = L.specs(strcmp({L.specs.key}, L.primarySpec));
 
-res = run_lmm_21features(localCfg, F, T(:, {'SubjectID', 'RawTrial', ...
-    'Pressure', 'Score', 'Error', 'EffortIndex'}));
+res = fit_lmm21_models(T, Lr);
 
 P = res.primary;
-planted = P(P.Feature == "f01", :);
-others  = P(P.Feature ~= "f01", :);
-
-okPlant = planted.q < 0.05;
-okNull  = nnz(others.q < 0.05) == 0;
-okBound = planted.Lower < bTrue && planted.Upper > bTrue;
+planted = P(P.Feature == string(names{1}), :);
+others  = P(P.Feature ~= string(names{1}), :);
 
 fprintf('        planted beta %.3f, recovered %.3f [%.3f %.3f], q = %.4f\n', ...
     bTrue, planted.Estimate, planted.Lower, planted.Upper, planted.q);
-fprintf('        survivors among the 20 null features: %d\n', nnz(others.q < 0.05));
+fprintf('        survivors among the 20 null features: %d\n', ...
+    nnz(others.q < 0.05));
+
+nFail = ck(planted.q < 0.05, ...
+    'a planted effect is recovered and survives the correction', nFail);
+nFail = ck(nnz(others.q < 0.05) == 0, ...
+    'pure noise gives no survivor out of 21', nFail);
+nFail = ck(planted.Lower < bTrue && planted.Upper > bTrue, ...
+    'the interval covers the truth', nFail);
+
 end

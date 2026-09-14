@@ -1,206 +1,275 @@
-function cfg = lmm21_config()
-%LMM21_CONFIG  Every setting of the 21 feature cortical LMM analysis.
+function L = lmm21_config(cfg)
+%LMM21_CONFIG  Every setting the trial-level cortical LMM uses, in one place.
 %
-%  This is the only file in the set that contains a path, a participant
-%  number, a band edge, a cluster name or a model formula. Nothing else needs
-%  editing when the analysis moves to another machine.
+%   L = LMM21_CONFIG(CFG) returns the settings, the folders and the output file
+%   names for the 21-feature analysis. RUN_LMM21, BUILD_LMM21_FEATURES and
+%   CHECKS/CHECK_LMM21 all read from here, so they cannot disagree about which
+%   clusters, which bands or which participants they are working on.
 %
-%  Lines marked TODO are the assumptions this code makes about the rebuilt
-%  pipeline. Check each one before the first run.
+%   No path is written down in this file that is not derived from CFG. Change
+%   the analysis here; the entry point carries only the run-time choices.
 %
-%  The 21 features are 7 clusters x 3 bands. The manuscript states the number
-%  explicitly, so BUILD_EEG_FEATURE_TABLE asserts it rather than trusting the
-%  loop to produce it.
+%   See also RUN_LMM21, KNEEEXO_CONFIG, COUPLING_CONFIG.
 %
-%  See also BUILD_EEG_FEATURE_TABLE, RUN_LMM_21FEATURES.
+%   Part of the KneeExo-EEG analysis code.
 
-% -------------------------------------------------------------------------
-% 1. Paths
-% -------------------------------------------------------------------------
-% TODO check every path below against the rebuilt repository.
-cfg.paths.root      = 'D:\Morteza\MyProjects\ANSYMB2024\';
-cfg.paths.icatimef  = fullfile(cfg.paths.root, 'data', ...
-                        '5_single-subject-EEG-analysis', 'Epoched_data');
-cfg.paths.behaviour = fullfile(cfg.paths.root, 'data', 'master_tables');
-cfg.paths.clusters  = fullfile(cfg.paths.root, 'data', ...
-                        '6_group-level-EEG-analysis', 'Subjects_ICs_in_clusters.mat');
-cfg.paths.pairing   = fullfile(cfg.paths.root, 'data', ...
-                        '6_group-level-EEG-analysis', 'epoch_pairing_map.mat');
-cfg.paths.out       = fullfile(cfg.paths.root, 'results', 'lmm21');
+if nargin < 1 || isempty(cfg)
+    cfg = kneeexo_config();
+end
 
-% File name pattern for one participant's time frequency file.
-% TODO confirm. The old pipeline wrote S5.icatimef, S6.icatimef and so on.
-cfg.paths.icatimefPattern = 'S%d.icatimef';
+L = struct();
+L.cfg = cfg;
 
-% -------------------------------------------------------------------------
-% 2. Participants
-% -------------------------------------------------------------------------
-% The STUDY runs over participants 5 to 18, which is the 14 analysed people.
-% Cluster membership is stored with a cluster internal index, so participant
-% number is subjectList(clusterInternalIndex). Do not hard code the offset.
-cfg.subjectList = 5:18;
+% ---- what is analysed ---------------------------------------------------
 
-% How the Subjects field of the cluster membership file is numbered.
-%   false  it holds participant numbers, 5 to 18
-%   true   it holds an index into cfg.subjectList, 1 to 14
-% There is no safe way to detect this: a cluster containing only participants
-% 5 to 14 looks identical under both readings, and guessing wrong shifts every
-% participant by a constant while the analysis still runs to completion. So it
-% is stated here and checked, never inferred.
-% TODO open Subjects_ICs_in_clusters.mat and look.
-cfg.clusterSubjectsAreIndices = false;
+% Participants, in the order the clustering used. SUBJECTS_ICS stores
+% positions in this list rather than participant numbers, so it must be the
+% list the clustering ran on.
+L.subjects = cfg.subjects;
 
-% Participant 10 has an all zero EMG stream, so EffortIndex is missing for
-% every one of their trials. They drop out of any model that contains
-% EffortIndex, which is why the behavioural effort numbers are n = 13. This is
-% handled by the flags in the screened table, not by a list here.
-
-% -------------------------------------------------------------------------
-% 3. Clusters
-% -------------------------------------------------------------------------
-% name   : the name used by the clustering solutions and by study_info.txt
-% abbr   : the prefix of the feature column, so LM1_alpha and so on
-% label  : the anatomical name for the supplementary table
+% The clusters, and the short prefix each contributes to a feature name.
 %
-% TODO confirm the names match the folder names of the published clustering
-% solutions exactly. The clusters come from seven separate clustering runs,
-% each with its own k, so the name is the only reliable key.
-cfg.clusters = struct( ...
-    'name',  {'Left_Prim_Motor', 'Right_Prim_Motor', ...
-              'Left_PreMot_SuppMot', 'Right_PreMot_SuppMot', ...
-              'Left_Parieto_Occipital', 'Right_Parieto_Occipital', ...
-              'Left_Dorsal_ACC'}, ...
-    'abbr',  {'LM1', 'RM1', 'LPM', 'RPM', 'LPO', 'RPO', 'dACC'}, ...
-    'label', {'Left primary motor', 'Right primary motor', ...
-              'Left premotor and supplementary motor', ...
-              'Right premotor and supplementary motor', ...
-              'Left parieto occipital', 'Right parieto occipital', ...
-              'Dorsal anterior cingulate'});
+% SEVEN of the eight ROIs, not all eight. Prime_Visual is left out, which is
+% the composition the earlier whole-brain table used and the only one that
+% gives the 21 features the manuscript states. The exclusion is historical
+% rather than principled, so it is a decision to confirm rather than a fact:
+% adding Prime_Visual gives 24 features, changes the correction, and means
+% changing "21" everywhere in the Results and Methods. Whichever way it goes,
+% it has to be stated in the Methods, because a reader comparing this list
+% against ersp_params.roiStudyFiles will count eight.
+L.clusters = { ...
+    'Left_Prim_Motor',         'LM1',   'left primary motor'; ...
+    'Right_Prim_Motor',        'RM1',   'right primary motor'; ...
+    'Left_PreMot_SuppMot',     'LPM',   'left premotor and supplementary motor'; ...
+    'Right_PreMot_SuppMot',    'RPM',   'right premotor and supplementary motor'; ...
+    'Left_Parieto_Occipital',  'LPO',   'left parieto-occipital'; ...
+    'Right_Parieto_Occipital', 'RPO',   'right parieto-occipital'; ...
+    'Left_Dorsal_ACC',         'LdACC', 'left dorsal anterior cingulate'};
 
-% -------------------------------------------------------------------------
-% 4. Bands
-% -------------------------------------------------------------------------
-% TODO copy these edges from ersp_params.m. They must be identical to the
-% edges used for Figure 3, otherwise the paper describes one quantity in the
-% figure and a different one in the null.
-cfg.bands = struct( ...
-    'name',  {'theta', 'alpha', 'beta'}, ...
-    'label', {'theta', 'mu and alpha', 'beta'}, ...
-    'edges', {[4 8], [8 13], [13 30]});
+% Bands. Read from cfg.bands rather than declared here, so this analysis and
+% the FDR family in stage 7 cannot drift apart. Gamma is excluded: it is in
+% the Figure 3 family of 16 tests but not in this one, because the demand
+% effect is absent from gamma and the manuscript states 21, not 28.
+%
+% Lower edge inclusive, upper edge exclusive, matching COUPLING_CONFIG, so
+% adjacent bands never share a frequency bin. cfg.bands lists them as
+% [4 8], [8 14], [14 30], which would otherwise overlap at 8 and 14 Hz.
+L.bandNames  = {'theta', 'alpha', 'beta'};
+L.bandLabels = {'theta', 'mu and alpha', 'beta'};
+L.bands      = struct();
+for b = 1:numel(L.bandNames)
+    L.bands.(L.bandNames{b}) = cfg.bands.(L.bandNames{b});
+end
 
-% -------------------------------------------------------------------------
-% 5. Feature definition
-% -------------------------------------------------------------------------
-% Whole cycle window, in the warped time axis of the .icatimef file.
-%   'timewarp'  take the first and last time warp landmark from the file, so
-%               the window is exactly the movement cycle the ERSPs show
-%   'explicit'  use cfg.feature.cycleWindowMs instead
-cfg.feature.cycleSource   = 'timewarp';
-cfg.feature.cycleWindowMs = [];        % used only when cycleSource is explicit
+L.nFeatures = size(L.clusters, 1) * numel(L.bandNames);
 
-% Baseline. The ERSP pipeline used 'median latency baseline', which
-% mod_std_precomp_v_forEEGlabv2021 resolves to [0 medianLatency].
-%   'fromfile'  read the resolved window out of the file parameters
-%   'explicit'  use cfg.feature.baselineWindowMs
-%   'none'      no baseline, features are raw log power
-cfg.feature.baselineSource   = 'fromfile';
-cfg.feature.baselineWindowMs = [];
+% ---- how the feature is built -------------------------------------------
 
-% Common baseline means one baseline spectrum per participant and cluster,
-% averaged over every epoch. This is required here. A single trial baseline
-% divides each epoch by its own baseline and therefore removes exactly the
-% trial to trial variance this analysis is trying to model.
-cfg.feature.trialBaseline = false;
+% Trial quality control. The published ERSPs drop trials flagged by
+% FLAG_BAD_TRIALS per participant and condition, so the same screen is applied
+% here. Turning it off means the null is computed on a different set of trials
+% from the figures, which then has to be stated.
+L.applyErspQC = true;
 
-% Order of operations for the scalar feature. 'linear' averages the power
-% ratio over band, over cycle time and over the epochs of a trial, then takes
-% 10*log10 once. This is the mean then log definition the earlier pipeline
-% called option 2. 'db' converts each epoch first and averages in dB.
-cfg.feature.aggSpace = 'linear';
+% Observation level. Movement cycles are averaged within a trial before
+% anything else, which matches the behaviour table, the coupling analysis and
+% the level the rating is given at.
+L.aggregate = 'trial';
 
-% Observation level. 'trial' averages the movement cycles of a trial, which
-% matches the observation level of the behavioural variables and of the
-% coupling analysis. 'epoch' keeps cycles as rows and needs a second random
-% effect, which is not what the manuscript describes.
-cfg.feature.aggregate = 'trial';
+% Baseline. One spectrum per participant and cluster: the mean over the three
+% conditions of each condition's mean over QC-surviving trials, averaged over
+% the cycle. This is COMPUTE_CLUSTER_ERSP's baseline exactly, so a feature here
+% is the same quantity as a pixel of the published ERSP, averaged over a band
+% and the cycle rather than over trials.
+%
+% It must stay condition-balanced. A plain mean over trials would let a
+% participant with more trials in one condition shift the reference, and the
+% between-condition difference is the effect the figures report.
+%
+% It must also stay common across trials. A per-trial baseline divides each
+% trial by its own power and removes exactly the trial-to-trial variation this
+% model exists to test. CHECK_LMM21 asserts both properties.
+L.baseline = 'ersp';          % 'ersp', or 'none' for raw log power
 
-% -------------------------------------------------------------------------
-% 6. Within participant scaling
-% -------------------------------------------------------------------------
-% Primary specification z scores each feature inside each participant, so a
-% coefficient is rating points per within participant standard deviation and
-% the confidence interval is directly the exclusion bound quoted in the
-% Discussion. Centring keeps the dB unit and is carried as a sensitivity run.
-cfg.scale.featureMode   = 'z';      % primary, 'z' or 'center'
-cfg.scale.minTrials     = 5;        % fewer trials than this, participant set to NaN
-cfg.scale.covariateMode = 'raw';    % 'raw', 'center' or 'z' for Error and EffortIndex
+% Order of operations. Everything is averaged in linear ratio units and
+% converted to dB once, at the end. Converting per epoch and averaging
+% afterwards computes a geometric mean across cycles, which is a different
+% feature.
+L.aggSpace = 'linear';
 
-% -------------------------------------------------------------------------
-% 7. Model
-% -------------------------------------------------------------------------
-cfg.model.response   = 'Score';
-cfg.model.condition  = 'Pressure_cat';
-cfg.model.subject    = 'Subject_cat';
-cfg.model.covariates = {'Error', 'EffortIndex'};
-cfg.model.pressureLevels = {'1', '3', '6'};   % reference level first
+% ---- the model ----------------------------------------------------------
+
+L.model = struct();
+L.model.response   = 'Score';
+L.model.condition  = 'Pressure_cat';   % Low / Medium / High, reference Low
+L.model.subject    = 'Subject_cat';
+L.model.covariates = {'Error', 'EffortIndex'};
+
+% Within-participant scaling of the feature. 'z' makes a coefficient rating
+% points per within-participant standard deviation, so its confidence interval
+% is directly the exclusion bound the Discussion sets against the 5.20 rating
+% point demand effect. 'center' keeps dB.
+L.model.featureMode   = 'z';
+L.model.covariateMode = 'raw';
+L.model.minTrials     = 5;     % per participant, below this the feature is NaN
 
 % Random slope models did not converge, so the primary specification uses a
-% by participant random intercept and tests each feature by its fixed effect
-% coefficient. Specification RS below re fits with the random slope and
-% records the failure, so the Methods sentence rests on a logged result
-% rather than on an assertion.
-% Built one at a time rather than through struct() with cell arguments,
-% because an empty cell in that argument list is a well known way to end up
-% with a 0 by 0 struct array and no error.
-cfg.specs = spec('primary', 'z', {'Error','EffortIndex'}, 'raw', ...
-    '(1 | Subject_cat)', 'REML', 'primary, reported in the paper');
+% by-participant random intercept and tests each feature by its own fixed
+% effect coefficient. Specification randslope re-fits with the slope and
+% records the failures, so the Methods sentence rests on a logged count.
+%
+% REML throughout. It is correct here because nothing is compared: every
+% feature is judged by a Wald test on its own coefficient. ML would be needed
+% only for a likelihood ratio between models with different fixed effects, and
+% that comparison was dropped because it was unstable.
+L.specs = spec('primary',   'z',      {'Error','EffortIndex'}, 'raw', ...
+               '(1 | Subject_cat)', 'primary, reported in the paper');
+L.specs(end+1) = spec('centred',   'center', {'Error','EffortIndex'}, 'raw', ...
+               '(1 | Subject_cat)', 'feature in dB rather than SD units');
+L.specs(end+1) = spec('nocov',     'z',      {},                      'raw', ...
+               '(1 | Subject_cat)', 'no effort or error covariate');
+L.specs(end+1) = spec('zcov',      'z',      {'Error','EffortIndex'}, 'z', ...
+               '(1 | Subject_cat)', 'covariates within participant z scored too');
+L.specs(end+1) = spec('randslope', 'z',      {'Error','EffortIndex'}, 'raw', ...
+               '(1 + Pressure_cat | Subject_cat)', ...
+               'expected to fail, the failure is the result');
 
-cfg.specs(end+1) = spec('centred', 'center', {'Error','EffortIndex'}, 'raw', ...
-    '(1 | Subject_cat)', 'REML', 'feature in dB rather than SD units');
+L.primarySpec = 'primary';
 
-cfg.specs(end+1) = spec('nocov', 'z', {}, 'raw', ...
-    '(1 | Subject_cat)', 'REML', 'no effort or error covariate');
+L.stats = struct();
+L.stats.fitMethod = 'REML';
+L.stats.dfMethod  = 'satterthwaite';
+L.stats.alpha     = 0.05;
+L.stats.fdrQ      = 0.05;
 
-cfg.specs(end+1) = spec('zcov', 'z', {'Error','EffortIndex'}, 'z', ...
-    '(1 | Subject_cat)', 'REML', 'covariates also within participant z scored');
+% ---- where the inputs are -----------------------------------------------
+%
+% Spelled out rather than looked up by a generic field name, for the reason
+% COUPLING_CONFIG gives: "epoched" means the single-subject EEG epochs in one
+% part of the project and the epoched experiment streams in another.
 
-cfg.specs(end+1) = spec('randslope', 'z', {'Error','EffortIndex'}, 'raw', ...
-    '(1 + Pressure_cat | Subject_cat)', 'REML', ...
-    'random slope, expected to fail, the failure is the result');
+L.paths = struct();
+L.paths.icatimef = '';
+if ~isempty(cfg.raw)
+    L.paths.icatimef = fullfile(cfg.raw, '5_single-subject-EEG-analysis', ...
+        'Epoched_data');
+end
 
-cfg.primarySpec = 'primary';
+L.files = struct();
+L.files.clusterIC = fullfile(cfg.derived, 'Subjects_ICs_in_clusters.mat');
+L.files.pairing   = fullfile(cfg.derived, 'epoch_pairing_map.mat');
 
-% REML is correct here because every feature is tested by a Wald test on its
-% own coefficient. ML is only needed when two models with different fixed
-% effects are compared, and that comparison was dropped because it was
-% unstable.
+% The behaviour table. Prefer the copy the behaviour branch just wrote, fall
+% back to the one shipped in data/derived, so the model runs on a fresh clone.
+% RUN_RESULTS_BEHAVIOUR reads cfg.masters, so preferring it keeps the null and
+% Figure 2 on the same rows, which is the single authoritative source rule.
+L.files.behaviour = fullfile(cfg.derived, 'behaviour_table.mat');
+L.files.behaviourSource = 'data/derived (shipped)';
+if ~isempty(cfg.raw)
+    fromMasters = fullfile(cfg.masters, 'behaviour_table.mat');
+    if exist(fromMasters, 'file') == 2
+        L.files.behaviour = fromMasters;
+        L.files.behaviourSource = 'cfg.masters (rebuilt)';
+    end
+end
 
-% -------------------------------------------------------------------------
-% 8. Inference
-% -------------------------------------------------------------------------
-cfg.stats.dfMethod = 'satterthwaite';
-cfg.stats.alpha    = 0.05;
-cfg.stats.fdrQ     = 0.05;
+% The 21 features, cached. Committed alongside the other derived tables, for
+% the same reason figure2_precomputed.mat is: it lets the whole model run
+% without tier 2, which is several gigabytes of .icatimef.
+L.files.features = fullfile(cfg.derived, 'lmm21_features.mat');
 
-% -------------------------------------------------------------------------
-% 9. Output
-% -------------------------------------------------------------------------
-cfg.out.featureTable   = 'eeg_features_21.mat';
-cfg.out.featureAudit   = 'eeg_features_21_audit.csv';
-cfg.out.resultsTable   = 'lmm21_results.csv';
-cfg.out.sensitivity    = 'lmm21_sensitivity.csv';
-cfg.out.results        = 'lmm21_results.mat';
-cfg.out.report         = 'lmm21_report.txt';
-cfg.out.supplementTex  = 'lmm21_supplementary_table.tex';
+% ---- where the outputs go -----------------------------------------------
+% cfg.figures is the output root for figure files and statistics reports, and
+% is gitignored. ERSP_QC is laid out the same way.
 
-cfg.verbose = true;
+L.files.outDir = fullfile(cfg.figures, 'LMM21');
+
+L.files.results     = fullfile(L.files.outDir, 'lmm21_results.csv');
+L.files.sensitivity = fullfile(L.files.outDir, 'lmm21_sensitivity.csv');
+L.files.resultsMat  = fullfile(L.files.outDir, 'lmm21_results.mat');
+L.files.report      = fullfile(L.files.outDir, 'lmm21_stats_report.txt');
+L.files.supplement  = fullfile(L.files.outDir, 'lmm21_supplementary_table.tex');
+L.files.audit       = fullfile(L.files.outDir, 'lmm21_feature_audit.csv');
+
+if exist(L.files.outDir, 'dir') ~= 7
+    mkdir(L.files.outDir);
+end
+
+% ---- cache validity -----------------------------------------------------
+% Bump this whenever the meaning of a stored feature changes, so a cache
+% written by an older version is rebuilt rather than loaded and misread.
+%   1  first version: 7 clusters, theta/alpha/beta, ERSP baseline, ERSP QC
+L.featureVersion = 1;
+
+L.settings = struct('featureVersion', L.featureVersion, ...
+    'clusters', {L.clusters(:, 1).'}, 'bandNames', {L.bandNames}, ...
+    'bands', L.bands, 'subjects', L.subjects, ...
+    'applyErspQC', L.applyErspQC, 'aggregate', L.aggregate, ...
+    'baseline', L.baseline, 'aggSpace', L.aggSpace);
+
+% ---- fail now rather than an hour into the run --------------------------
+
+check_config(L);
 
 end
 
-% =========================================================================
-function s = spec(key, featureMode, covariates, covariateMode, random, ...
-    fitMethod, note)
+
+% ----------------------------------------------------------------------------
+function s = spec(key, featureMode, covariates, covariateMode, random, note)
+%SPEC  One specification. Built singly because struct() with a cell argument
+%      turns an empty covariate list into a 0x0 struct array without an error.
+
 s = struct('key', key, 'featureMode', featureMode, ...
     'covariates', {covariates}, 'covariateMode', covariateMode, ...
-    'random', random, 'fitMethod', fitMethod, 'note', note);
+    'random', random, 'note', note);
+
+end
+
+
+% ----------------------------------------------------------------------------
+function check_config(L)
+%CHECK_CONFIG  Catch the mistakes that would otherwise surface as a result.
+
+% The manuscript states 21. A cluster or a band quietly going missing would
+% change what the correction is applied across while the run still finished.
+if L.nFeatures ~= 21
+    error('lmm21_config:FeatureCount', ...
+        ['%d clusters by %d bands gives %d features. The manuscript reports ' ...
+         '21. Either fix the lists or change the number in the Results, the ' ...
+         'Methods and the supplementary table caption.'], ...
+        size(L.clusters, 1), numel(L.bandNames), L.nFeatures);
+end
+
+abbr = L.clusters(:, 2);
+if numel(unique(abbr)) ~= numel(abbr)
+    error('lmm21_config:DuplicateAbbreviation', ...
+        'Two clusters share a feature prefix: %s.', strjoin(abbr.', ', '));
+end
+
+for b = 1:numel(L.bandNames)
+    e = L.bands.(L.bandNames{b});
+    if numel(e) ~= 2 || e(1) >= e(2)
+        error('lmm21_config:BandEdges', ...
+            'Band %s has edges %s.', L.bandNames{b}, mat2str(e));
+    end
+end
+
+% Inputs that must exist whatever is being run.
+if exist(L.files.clusterIC, 'file') ~= 2
+    error('lmm21_config:MissingClusterICs', ...
+        ['Cannot find the cluster to component mapping at\n  %s\nIt holds ' ...
+         'SUBJECTS_ICS and ships in data/derived.'], L.files.clusterIC);
+end
+
+if exist(L.files.behaviour, 'file') ~= 2
+    error('lmm21_config:MissingBehaviour', ...
+        ['Cannot find the behaviour table at\n  %s\nRun ' ...
+         'behaviour/run_build_masters.m, or use the copy in data/derived.'], ...
+        L.files.behaviour);
+end
+
+% Inputs needed only when the features are rebuilt. Missing ones are reported
+% by BUILD_LMM21_FEATURES, which is where they first matter, so that the model
+% still runs from the cached feature table on a machine without tier 2.
+
 end
