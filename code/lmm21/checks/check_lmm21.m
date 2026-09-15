@@ -284,8 +284,96 @@ mixed = epCond; mixed(1) = 99;
 nFail = ck(errors(@() lmm21_trial_features(P, freqs, epTrial, mixed, bands, ...
     'applyQC', false)), 'a trial spanning two conditions errors', nFail);
 
+% The quality control branch, with the real FLAG_BAD_TRIALS. This is exercised
+% here because it is the one path the synthetic tests above skip, and it is
+% where an interface mistake hides: FLAG_BAD_TRIALS builds a table whose metric
+% columns are nTrials x 1, so a row-shaped trial vector fails inside the table
+% constructor with an error that names neither this file nor that argument.
+if isempty(ver('stats'))
+    fprintf('  SKIP  QC branch needs the Statistics Toolbox\n');
+else
+    p = ersp_params();
+    qcOK = true;
+    qcMsg = '';
+    try
+        oq = lmm21_trial_features(P, freqs, epTrial, epCond, bands, ...
+            'applyQC', true, 'qc', p.qc);
+    catch ME
+        qcOK = false;
+        qcMsg = ME.message;
+    end
 
-%% 5. Model recovery
+    if qcOK
+        nFail = ck(true, 'the QC branch runs with the real flag_bad_trials', nFail);
+        fprintf('        flagged %d of %d epochs\n', nnz(oq.isBad), numel(oq.isBad));
+
+        % Whatever it flags must be gone from both the baseline and the
+        % features, which is checked against removing them by hand.
+        good = ~oq.isBad;
+        ref = lmm21_trial_features(P(:, :, good), freqs, epTrial(good), ...
+            epCond(good), bands, 'applyQC', false);
+        nFail = ck(max(abs(oq.baseline - ref.baseline)) < 1e-12, ...
+            'the baseline is built from surviving epochs only', nFail);
+        nFail = ck(isequal(oq.trial, ref.trial) && ...
+            max(abs(oq.feature(:) - ref.feature(:))) < 1e-12, ...
+            'features match a run with the flagged epochs removed by hand', nFail);
+    else
+        nFail = ck(false, ['the QC branch runs with the real flag_bad_trials: ' ...
+            qcMsg], nFail);
+    end
+end
+
+
+
+%% 5. lmm21_derive_terms
+fprintf('\n--- lmm21_derive_terms ---\n');
+
+% Unequal trial counts on purpose: the between term is grand centred over
+% participants, not over rows, and with equal counts the two are the same
+% number and the test could not tell them apart.
+sub = [ones(10, 1); 2 * ones(20, 1); 3 * ones(30, 1)];
+W = table();
+W.Subject_cat  = categorical(sub);
+W.RawTrial     = (1:numel(sub))';
+W.Error        = sub * 2 + randn(numel(sub), 1);
+W.EffortIndex  = 4 + randn(numel(sub), 1) * 0.5;   % no between variance by design
+
+% Give the effort index exactly zero between-participant variance, which is
+% what BUILD_BEHAVIOUR_TABLE's within-participant normalisation produces.
+for i = 1:3
+    r = sub == i;
+    W.EffortIndex(r) = W.EffortIndex(r) - mean(W.EffortIndex(r)) + 4;
+end
+
+[W2, terms] = lmm21_derive_terms(W, L);
+
+wSums = arrayfun(@(i) sum(W2.Error_w(sub == i)), 1:3);
+nFail = ck(max(abs(wSums)) < 1e-12, ...
+    'the within term sums to zero inside every participant', nFail);
+
+recon = W2.Error_w + W2.Error_b;
+subjMeans = arrayfun(@(i) mean(W.Error(sub == i)), 1:3);
+nFail = ck(max(abs(recon - (W.Error - mean(subjMeans)))) < 1e-12, ...
+    'within plus between reconstructs the centred original', nFail);
+
+nFail = ck(abs(mean(arrayfun(@(i) W2.Error_b(find(sub == i, 1)), 1:3))) < 1e-12, ...
+    'the between term is centred over participants, not over rows', nFail);
+nFail = ck(abs(mean(W2.Error_b)) > 1e-6, ...
+    'and with unequal trial counts those two differ, so the test has teeth', nFail);
+
+nFail = ck(ismember('Error_b', terms.between), ...
+    'a mediator with between-participant variance keeps its between term', nFail);
+nFail = ck(~ismember('EffortIndex_b', terms.between), ...
+    'a mediator normalised within participant loses its between term', nFail);
+nFail = ck(all(ismember({'Error_w', 'EffortIndex_w'}, terms.within)), ...
+    'both within terms are offered', nFail);
+
+nFail = ck(abs(mean(W2.Trial_z)) < 1e-12 && abs(std(W2.Trial_z) - 1) < 1e-12, ...
+    'the trial term is z scored over the analysed rows', nFail);
+nFail = ck(isequal(terms.trial, {'Trial_z'}), 'the trial term is offered', nFail);
+
+
+%% 6. Model recovery
 fprintf('\n--- model recovery ---\n');
 if isempty(ver('stats'))
     fprintf('  SKIP  Statistics and Machine Learning Toolbox not available\n');
@@ -413,12 +501,24 @@ nSub = 14;
 nTri = 120;
 bTrue = 0.30;
 
-sub   = repelem((1:nSub)', nTri);
-press = repmat(repelem([1; 3; 6], nTri / 3), nSub, 1);
+sub = repelem((1:nSub)', nTri);
+
+% Pressure is permuted within each participant. Blocking it by trial number,
+% which is the obvious way to generate it, makes pressure and trial number
+% collinear, and the model now carries both, so the test would be exercising a
+% degenerate design rather than the analysis.
+press = zeros(nSub * nTri, 1);
+trial = zeros(nSub * nTri, 1);
+base  = repelem([1; 3; 6], nTri / 3);
+for i = 1:nSub
+    r = (sub == i);
+    press(r) = base(randperm(nTri));
+    trial(r) = 1:nTri;
+end
 
 subInt = randn(nSub, 1) * 1.2;
 effort = 3 + 0.35 * press + randn(nSub * nTri, 1) * 0.8;
-err    = 5.5 + 0.08 * press + randn(nSub * nTri, 1) * 1.3;
+err    = 5.5 + 0.08 * press + 0.004 * trial + randn(nSub * nTri, 1) * 1.3;
 
 signal = randn(nSub * nTri, 1);
 noise  = randn(nSub * nTri, 20);
@@ -428,16 +528,21 @@ score = 1.5 + 1.2 * press + subInt(sub) + 0.25 * effort + 0.05 * err + ...
 
 T = table();
 T.SubjectID   = sub;
+T.RawTrial    = trial;
 T.Score       = score;
 T.Error       = err;
 T.EffortIndex = effort;
 T.Subject_cat = categorical(sub);
+T.Pressure_ord = double(categorical(press, [1 3 6])) - 1;     % 0 1 2
 T.Pressure_cat = reordercats(categorical(press, [1 3 6], ...
     {'Low', 'Medium', 'High'}), {'Low', 'Medium', 'High'});
 
+% Feature order is cluster then band, so names{1} is the first band of the
+% first cluster. The planted effect therefore sits inside one cluster, which
+% is what makes the cluster test below a meaningful check.
 names = lmm21_feature_names(L);
 T.(names{1}) = signal;
-for k = 2:21
+for k = 2:numel(names)
     T.(names{k}) = noise(:, k - 1);
 end
 
@@ -446,20 +551,39 @@ Lr.specs = L.specs(strcmp({L.specs.key}, L.primarySpec));
 
 res = fit_lmm21_models(T, Lr);
 
-P = res.primary;
-planted = P(P.Feature == string(names{1}), :);
-others  = P(P.Feature ~= string(names{1}), :);
+% The planted feature is the first one, which belongs to the first cluster.
+plantedCluster = string(L.clusters{1, 1});
 
-fprintf('        planted beta %.3f, recovered %.3f [%.3f %.3f], q = %.4f\n', ...
-    bTrue, planted.Estimate, planted.Lower, planted.Upper, planted.q);
-fprintf('        survivors among the 20 null features: %d\n', ...
-    nnz(others.q < 0.05));
+C = res.cluster;
+hit    = C(C.Cluster == plantedCluster, :);
+others = C(C.Cluster ~= plantedCluster, :);
 
-nFail = ck(planted.q < 0.05, ...
-    'a planted effect is recovered and survives the correction', nFail);
+fprintf('        cluster %s: F(%d,%.0f) = %.2f, p = %.4f, q = %.4f\n', ...
+    plantedCluster, hit.DF1, hit.DF2, hit.FStat, hit.pValue, hit.q);
+fprintf('        survivors among the other %d clusters: %d\n', ...
+    height(others), nnz(others.q < 0.05));
+
+nFail = ck(hit.q < 0.05, ...
+    'the cluster holding the planted effect survives the correction', nFail);
 nFail = ck(nnz(others.q < 0.05) == 0, ...
-    'pure noise gives no survivor out of 21', nFail);
+    'the six clusters of pure noise give no survivor', nFail);
+
+% The bound pass: the single-feature interval must cover the truth, and the
+% feature table must carry no q, because a q there would invite it to be read
+% as a family of 21 tests.
+F = res.feature;
+planted = F(F.Feature == string(names{1}), :);
+
+fprintf('        planted beta %.3f, recovered %.3f [%.3f %.3f]\n', ...
+    bTrue, planted.Estimate, planted.Lower, planted.Upper);
+
 nFail = ck(planted.Lower < bTrue && planted.Upper > bTrue, ...
-    'the interval covers the truth', nFail);
+    'the single-feature interval covers the truth', nFail);
+nFail = ck(~ismember('q', F.Properties.VariableNames), ...
+    'the feature table carries no q, so it cannot be read as 21 tests', nFail);
+nFail = ck(ismember('q', C.Properties.VariableNames), ...
+    'the cluster table carries the q, because that is the family', nFail);
+nFail = ck(height(C) == size(L.clusters, 1), ...
+    'there is one test per cluster', nFail);
 
 end

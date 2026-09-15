@@ -10,15 +10,33 @@
 %   also unusual, over and above the pressure, the tracking error and the
 %   muscular effort of that same trial?
 %
-%   For each of 21 features, seven clusters by three bands,
+%   THE TEST is one model per cluster, with that cluster's three bands entered
+%   together and tested jointly:
 %
-%     Score ~ 1 + Pressure_cat + Error + EffortIndex + EEGfeat + (1 | Subject_cat)
+%     Score ~ 1 + Pressure_ord + EffortIndex_w + Error_w + Error_b + Trial_z
+%                + EEG_theta + EEG_alpha + EEG_beta + (1 | Subject_cat)
 %
-%   fitted by REML, with the feature z scored inside each participant so a
-%   coefficient is rating points per within-participant standard deviation. Each
-%   feature is judged by a Wald test on its own coefficient with Satterthwaite
-%   denominator degrees of freedom, and the 21 p values are corrected with
-%   Benjamini and Hochberg.
+%   Seven tests, one per cluster, Benjamini and Hochberg corrected across the
+%   seven. The family is the clusters, not the 21 features. Testing the bands
+%   one at a time has little power against an effect spread across them, and
+%   the bands of one component are correlated through 1/f structure and
+%   spectral leakage anyway. One model over all 21 features is not available:
+%   only three participants contribute a component to all seven clusters.
+%
+%   THE BOUND is one model per feature, the feature alone, reported as an
+%   estimate and an interval with no p and no q. That coefficient is a total
+%   effect, whereas a band coefficient inside a joint model is adjusted for the
+%   other two bands, and "how much could left M1 alpha matter" is naturally a
+%   total. The Discussion argument runs on this interval.
+%
+%   The baseline in both passes is RUN_RESULTS_BEHAVIOUR's mediation model mdlB
+%   term for term, which is what the Results sentence "building on the
+%   mediation model" claims: pressure ordinal, effort and error split into
+%   within- and between-participant components, trial number z scored.
+%
+%   The feature is centred within participant in the primary specification, so
+%   a coefficient is rating points per dB. Specification zfeature repeats it z
+%   scored, which is where the standardised bound comes from.
 %
 %   NO MODEL COMPARISON ANYWHERE. The earlier version of this analysis reported
 %   a likelihood ratio and AIC comparison. Those results were a convergence
@@ -32,8 +50,8 @@
 %   --------
 %     1  BUILD_LMM21_FEATURES  21 trial-level features from the .icatimef files
 %     2  join to the behaviour table on SubjectID and RawTrial
-%     3  FIT_LMM21_MODELS      one model per feature, then the FDR correction
-%     4  REPORT_LMM21          the report, the manuscript numbers, the LaTeX table
+%     3  FIT_LMM21_MODELS      seven cluster tests, then 21 single-feature intervals
+%     4  REPORT_LMM21          the report, the manuscript numbers, two LaTeX tables
 %
 %   Step 1 needs tier 2 and takes a few minutes per cluster. Its result is
 %   cached in data/derived, so the model runs on a fresh clone with nothing
@@ -145,15 +163,30 @@ end
 
 T.Subject_cat = categorical(T.SubjectID);
 
-% Pressure_cat comes from the behaviour table already, as Low, Medium, High
-% with Low as the reference level. It is not rebuilt here, so the condition
-% coding of this model is the coding of every other model in the paper.
-if ~iscategorical(T.(L.model.condition))
-    error('run_lmm21:NoPressureCat', ...
-        '%s is not categorical in the behaviour table.', L.model.condition);
+% Both pressure codings come from the behaviour table rather than being
+% rebuilt here, so this model's condition coding is the coding every other
+% model in the paper uses. Pressure_ord is 0, 1, 2 and is what the mediation
+% fits; Pressure_cat is Low, Medium, High with Low as the reference level and
+% is used only by the sensitivity specification that tests the equal-step
+% assumption.
+needed = {L.model.ordinal, L.model.categorical, L.model.trial, ...
+          L.model.mediators{:}}; %#ok<CCAT>
+absent = needed(~ismember(needed, T.Properties.VariableNames));
+if ~isempty(absent)
+    error('run_lmm21:MissingColumns', ...
+        ['The behaviour table has no column for %s. This model is the ' ...
+         'mediation model plus a feature, so it needs the same inputs the ' ...
+         'mediation uses.'], strjoin(absent, ', '));
 end
-condLevels = categories(T.(L.model.condition));
-fprintf('Condition levels: %s (reference %s)\n', ...
+
+if ~iscategorical(T.(L.model.categorical))
+    error('run_lmm21:NoPressureCat', ...
+        '%s is not categorical in the behaviour table.', L.model.categorical);
+end
+
+condLevels = categories(T.(L.model.categorical));
+fprintf('Pressure: ordinal %s, categorical %s (reference %s)\n', ...
+    mat2str(unique(T.(L.model.ordinal)).'), ...
     strjoin(condLevels.', ', '), condLevels{1});
 
 
@@ -170,7 +203,11 @@ results = fit_lmm21_models(T, L);
 
 report_lmm21(results, L, featureAudit);
 
-writetable(results.primary,     L.files.results);
+% Three files, one per thing. The cluster tests carry the claim, the feature
+% intervals carry the bound, the sensitivity file holds every other
+% specification of the cluster tests.
+writetable(results.cluster,     L.files.results);
+writetable(results.feature,     L.files.intervals);
 writetable(results.sensitivity, L.files.sensitivity);
 
 stamp = build_stamp(cfg, struct('analysis', 'lmm21', ...

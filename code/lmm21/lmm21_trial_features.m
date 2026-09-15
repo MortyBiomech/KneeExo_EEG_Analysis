@@ -101,7 +101,14 @@ if opts.applyQC
             continue
         end
         cells = squeeze(num2cell(power(:, :, idx), [1 2]));
-        [~, bad] = flag_bad_trials(cells, freqs, epochTrial(idx).', ...
+
+        % FLAG_BAD_TRIALS builds a table whose metric columns are nTrials x 1,
+        % so the trial vector must be a column of the same height. It is not
+        % optional: a row here makes the table constructor fail with "all table
+        % variables must have the same number of rows". COMPUTE_CLUSTER_ERSP
+        % transposes at this point because its trial list is a row; EPOCHTRIAL
+        % is already a column, so it must not be transposed again.
+        [~, bad] = flag_bad_trials(cells, freqs, epochTrial(idx), ...
             'HighBand', opts.qc.highBand, 'RefBand', opts.qc.refBand, ...
             'HotZ', opts.qc.hotZ, 'Zth', opts.qc.zThreshold, ...
             'CorrType', opts.qc.corrType);

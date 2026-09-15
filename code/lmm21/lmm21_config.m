@@ -114,20 +114,57 @@ L.baseline = 'ersp';          % 'ersp', or 'none' for raw log power
 L.aggSpace = 'linear';
 
 % ---- the model ----------------------------------------------------------
+%
+% THIS IS THE MEDIATION MODEL PLUS ONE TERM, and it has to stay that way.
+% The Results sentence opens "Building on the mediation model, we added each
+% cortical cluster's whole-cycle band power", so the baseline here is
+% RUN_RESULTS_BEHAVIOUR's mdlB, line 435:
+%
+%     Y ~ Xord + M1w + M2w + Tz + [M1b + M2b] + (1 | Subject)
+%
+% Three consequences, each of which this file got wrong in its first version.
+%
+% PRESSURE IS ORDINAL, 0 1 2, not a three-level categorical. The mediation
+% fits Xord and uses the categorical coding only once, as an equal-step check
+% that the ordinal assumption holds. Specification 'categorical' below carries
+% the two-degree-of-freedom version as a sensitivity run, which is also the
+% check that the null does not depend on the linearity assumption.
+%
+% EFFORT AND ERROR ARE SPLIT within and between participant, not entered raw.
+% With only a random intercept, a raw trial-level covariate conflates the
+% within-participant slope with the between-participant one, and the mediation
+% separates them deliberately. The between-participant effort term is
+% structurally zero, because the effort index is normalised within participant
+% so every participant's mean is four by construction; LMM21_DERIVE_TERMS
+% detects that rather than assuming it.
+%
+% TRIAL NUMBER IS A COVARIATE. The learning effect on tracking error is large,
+% about -0.45 degrees per standard deviation of trial number, so leaving it in
+% the residual widens every interval and therefore weakens the exclusion bound
+% the Discussion rests on.
+%
+% The within and between terms are computed on the rows entering each model,
+% not once on the widest set. A within-participant term centred on rows the
+% model does not see is not centred on the data it is fitted to, and carries a
+% between-participant residue, which is exactly what the split exists to
+% remove.
 
 L.model = struct();
-L.model.response   = 'Score';
-L.model.condition  = 'Pressure_cat';   % Low / Medium / High, reference Low
-L.model.subject    = 'Subject_cat';
-L.model.covariates = {'Error', 'EffortIndex'};
+L.model.response  = 'Score';
+L.model.ordinal   = 'Pressure_ord';    % 0 1 2, built by BUILD_BEHAVIOUR_TABLE
+L.model.categorical = 'Pressure_cat';  % Low / Medium / High, for the sensitivity
+L.model.subject   = 'Subject_cat';
+L.model.mediators = {'EffortIndex', 'Error'};
+L.model.trial     = 'RawTrial';        % becomes Trial_z
+L.model.minTrials = 5;     % per participant, below this the feature is NaN
 
-% Within-participant scaling of the feature. 'z' makes a coefficient rating
-% points per within-participant standard deviation, so its confidence interval
-% is directly the exclusion bound the Discussion sets against the 5.20 rating
-% point demand effect. 'center' keeps dB.
-L.model.featureMode   = 'z';
-L.model.covariateMode = 'raw';
-L.model.minTrials     = 5;     % per participant, below this the feature is NaN
+% Scaling of the feature. The prose says "within-subject centred", which is
+% what the mediation does to its own trial-level terms, so 'center' is the
+% consistent primary and keeps the coefficient in rating points per dB.
+% Specification 'zfeature' repeats it z scored, which is where the
+% standardised exclusion bound comes from, in rating points per
+% within-participant standard deviation.
+L.model.featureMode = 'center';
 
 % Random slope models did not converge, so the primary specification uses a
 % by-participant random intercept and tests each feature by its own fixed
@@ -138,21 +175,53 @@ L.model.minTrials     = 5;     % per participant, below this the feature is NaN
 % feature is judged by a Wald test on its own coefficient. ML would be needed
 % only for a likelihood ratio between models with different fixed effects, and
 % that comparison was dropped because it was unstable.
-L.specs = spec('primary',   'z',      {'Error','EffortIndex'}, 'raw', ...
-               '(1 | Subject_cat)', 'primary, reported in the paper');
-L.specs(end+1) = spec('centred',   'center', {'Error','EffortIndex'}, 'raw', ...
-               '(1 | Subject_cat)', 'feature in dB rather than SD units');
-L.specs(end+1) = spec('nocov',     'z',      {},                      'raw', ...
-               '(1 | Subject_cat)', 'no effort or error covariate');
-L.specs(end+1) = spec('zcov',      'z',      {'Error','EffortIndex'}, 'z', ...
-               '(1 | Subject_cat)', 'covariates within participant z scored too');
-L.specs(end+1) = spec('randslope', 'z',      {'Error','EffortIndex'}, 'raw', ...
-               '(1 + Pressure_cat | Subject_cat)', ...
-               'expected to fail, the failure is the result');
+%
+% spec(key, featureMode, condition, mediatorMode, trialTerm, random, note)
+L.specs = spec('primary', 'center', 'ordinal', 'split', true, ...
+    '(1 | Subject_cat)', 'the mediation model plus the feature, reported');
+
+L.specs(end+1) = spec('zfeature', 'z', 'ordinal', 'split', true, ...
+    '(1 | Subject_cat)', 'feature in SD units, source of the standardised bound');
+
+L.specs(end+1) = spec('categorical', 'center', 'categorical', 'split', true, ...
+    '(1 | Subject_cat)', 'pressure with 2 df, tests the linearity assumption');
+
+L.specs(end+1) = spec('notrial', 'center', 'ordinal', 'split', false, ...
+    '(1 | Subject_cat)', 'without the trial-number covariate');
+
+L.specs(end+1) = spec('rawcov', 'center', 'ordinal', 'raw', true, ...
+    '(1 | Subject_cat)', 'effort and error entered raw, not split');
+
+L.specs(end+1) = spec('nocov', 'center', 'ordinal', 'none', true, ...
+    '(1 | Subject_cat)', 'no effort or error covariate at all');
+
+L.specs(end+1) = spec('randslope', 'center', 'ordinal', 'split', true, ...
+    '(1 + Pressure_ord | Subject_cat)', ...
+    'expected to fail, the failure is the result');
 
 L.primarySpec = 'primary';
 
+% The specification whose interval is quoted as the standardised bound.
+L.boundSpec = 'zfeature';
+
+% THE FAMILY IS THE SEVEN CLUSTERS, not the 21 features.
+%
+% Each cluster is tested once, by a joint Wald test on its three band
+% coefficients entered together, and the correction runs across those seven
+% tests. The 21 single-feature fits still run, but they are reported as
+% estimates and intervals with no p and no q, because they are the precision
+% statement the Discussion needs rather than decisions.
+%
+% Two reasons for testing at the cluster level. Twenty-one marginal tests have
+% little power against an effect spread across the bands of a region, and the
+% bands of one component are correlated through 1/f structure and spectral
+% leakage in any case. And it is the question the manuscript asks, which is
+% about regions rather than about individual features.
+%
+% One model containing all 21 features is not an option: only three
+% participants contribute a component to all seven clusters.
 L.stats = struct();
+L.stats.family    = 'cluster';
 L.stats.fitMethod = 'REML';
 L.stats.dfMethod  = 'satterthwaite';
 L.stats.alpha     = 0.05;
@@ -200,10 +269,12 @@ L.files.features = fullfile(cfg.derived, 'lmm21_features.mat');
 
 L.files.outDir = fullfile(cfg.figures, 'LMM21');
 
-L.files.results     = fullfile(L.files.outDir, 'lmm21_results.csv');
+L.files.results     = fullfile(L.files.outDir, 'lmm21_cluster_tests.csv');
+L.files.intervals   = fullfile(L.files.outDir, 'lmm21_feature_intervals.csv');
 L.files.sensitivity = fullfile(L.files.outDir, 'lmm21_sensitivity.csv');
 L.files.resultsMat  = fullfile(L.files.outDir, 'lmm21_results.mat');
 L.files.report      = fullfile(L.files.outDir, 'lmm21_stats_report.txt');
+L.files.clusterTable = fullfile(L.files.outDir, 'lmm21_cluster_table.tex');
 L.files.supplement  = fullfile(L.files.outDir, 'lmm21_supplementary_table.tex');
 L.files.audit       = fullfile(L.files.outDir, 'lmm21_feature_audit.csv');
 
@@ -231,12 +302,18 @@ end
 
 
 % ----------------------------------------------------------------------------
-function s = spec(key, featureMode, covariates, covariateMode, random, note)
-%SPEC  One specification. Built singly because struct() with a cell argument
-%      turns an empty covariate list into a 0x0 struct array without an error.
+function s = spec(key, featureMode, condition, mediatorMode, trialTerm, ...
+    random, note)
+%SPEC  One specification.
+%
+%  condition     'ordinal' or 'categorical'
+%  mediatorMode  'split' for the within and between terms the mediation uses,
+%                'raw' for the trial-level values as they stand, 'none' to
+%                leave effort and error out
+%  trialTerm     include the z scored trial number
 
-s = struct('key', key, 'featureMode', featureMode, ...
-    'covariates', {covariates}, 'covariateMode', covariateMode, ...
+s = struct('key', key, 'featureMode', featureMode, 'condition', condition, ...
+    'mediatorMode', mediatorMode, 'trialTerm', trialTerm, ...
     'random', random, 'note', note);
 
 end

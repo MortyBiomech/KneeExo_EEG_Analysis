@@ -70,12 +70,40 @@ W = tbl(ok, :);
 % always an error.
 W.(L.model.subject) = removecats(W.(L.model.subject));
 
-empty = countcats(W.(L.model.condition)) == 0;
-if any(empty)
-    names = categories(W.(L.model.condition));
-    row.Message = sprintf('condition %s has no rows in this subset', ...
-        strjoin(names(empty).', ', '));
-    return
+% A predictor that carries no information in this subset makes the design rank
+% deficient, and fitlme's response to that is not always an error. Every
+% predictor the formula names is checked rather than one named here, because
+% the pressure coding is categorical in one specification and numeric in the
+% others, and the mediation's between-participant terms come and go with the
+% subset.
+for i = 1:numel(vars)
+
+    name = vars{i};
+    if strcmp(name, L.model.response) || strcmp(name, L.model.subject)
+        continue
+    end
+    v = W.(name);
+
+    if iscategorical(v)
+        n = countcats(v);
+        if any(n == 0)
+            names = categories(v);
+            row.Message = sprintf('%s level %s has no rows in this subset', ...
+                name, strjoin(names(n == 0).', ', '));
+            return
+        end
+        if nnz(n > 0) < 2
+            row.Message = sprintf('%s has only one level in this subset', name);
+            return
+        end
+
+    elseif isnumeric(v)
+        vf = v(isfinite(v));
+        if numel(vf) < 2 || std(vf) <= 0
+            row.Message = sprintf('%s is constant in this subset', name);
+            return
+        end
+    end
 end
 
 % Warnings stay on deliberately. A convergence warning during one of these fits

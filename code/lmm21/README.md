@@ -90,30 +90,94 @@ countings and they disagreed for the participants whose EMG builder compacted it
 index. The behaviour table keys on the experiment side, so that is the side used
 here, and the audit reports how often the two disagree.
 
-## The model
+## The model, and what is tested
+
+The baseline in every fit is `run_results_behaviour`'s mediation model `mdlB`,
+term for term, which is what the Results sentence "building on the mediation
+model" claims:
 
 ```
-Score ~ 1 + Pressure_cat + Error + EffortIndex + EEGfeat + (1 | Subject_cat)
+Score ~ 1 + Pressure_ord + EffortIndex_w + Error_w + Error_b + Trial_z + ...
+           + (1 | Subject_cat)
 ```
 
-REML, one fit per feature, the feature z scored inside each participant so a
-coefficient is rating points per within-participant standard deviation. Each
-feature is judged by a Wald test on its own coefficient with Satterthwaite
-denominator degrees of freedom, then Benjamini and Hochberg across the 21.
+*Pressure is ordinal*, 0 1 2, not a three-level factor. The mediation fits
+`Xord` and uses the categorical coding once, as an equal-step check.
+Specification `categorical` carries the two-degree-of-freedom version.
+
+*Effort and error are split* into within- and between-participant components.
+With only a random intercept, a raw trial-level covariate conflates the two
+slopes. `EffortIndex_b` is absent because the effort index is normalised within
+participant and so has no between-participant variance by construction;
+`lmm21_derive_terms` detects that rather than assuming it.
+
+*Trial number is a covariate.* The learning effect on tracking error is large,
+about −0.45° per SD of trial number, so leaving it in the residual widens every
+interval and weakens the bound.
+
+The within and between terms are computed on the rows entering each model, not
+once on the widest set, so no within term carries a between-participant residue.
+
+### The test: seven clusters
+
+```
+... + EEG_theta + EEG_alpha + EEG_beta + (1 | Subject_cat)
+```
+
+with a joint Wald test on the three band coefficients. Seven tests, Benjamini
+and Hochberg corrected across the seven. **The family is the clusters, not the
+21 features.**
+
+Three reasons. Testing the bands one at a time has little power against an
+effect spread across them. The bands of one component are correlated through
+1/f structure and spectral leakage, which inflates each coefficient's standard
+error while leaving a joint test unaffected, and a correlated block is exactly
+what a joint test is for. And the cluster-level question is the one the
+manuscript asks, which is about regions.
+
+One model containing all 21 features is not an option: only three participants
+contribute a component to all seven clusters, so it would run on three people.
+
+What this rules out is forming a weighted composite per cluster with signs
+chosen after seeing the coefficients, which is what the old `EEGIndex_new` did.
+
+### The bound: 21 intervals
+
+One model per feature, the feature alone, reported as an estimate and a 95%
+interval with **no p and no q**. `fit_lmm21_models` renames the uncorrected p
+column so it cannot be lifted into a table by accident, and `check_lmm21`
+asserts that the feature table carries no `q`.
+
+These are the precision statement the Discussion needs. The coefficient here is
+a total effect; a band coefficient inside a joint model is adjusted for the
+other two bands and has a wider interval because they are correlated. "How much
+could left M1 alpha matter" is naturally a total, so the bound comes from this
+pass and the claim comes from the other one.
+
+The feature is centred within participant in the primary specification, matching
+"within-subject centred" in the prose, so a coefficient is rating points per dB.
+Specification `zfeature` repeats it z scored, and that is where the standardised
+bound comes from, since a bound in dB has no scale on which to meet 5.20 rating
+points.
 
 **There is no model comparison anywhere in this folder.** No likelihood ratio, no
-AIC, no BIC, and `fit_feature_lmm` deliberately does not return AIC or BIC
-columns so the comparison cannot creep back in. The earlier version of this
-analysis reported one; it was a convergence artifact, with random-slope models
-fitting singular, an impossible negative dAIC, and the likelihood ratio
-disagreeing with the Wald test by orders of magnitude. Those numbers must not be
-used.
+AIC, no BIC, and neither fitting function returns AIC or BIC columns so the
+comparison cannot creep back in. The earlier version of this analysis reported
+one; it was a convergence artifact, with random-slope models fitting singular,
+an impossible negative dAIC, and the likelihood ratio disagreeing with the Wald
+test by orders of magnitude. Those numbers must not be used.
 
-Specification `randslope` re-fits every feature with
-`(1 + Pressure_cat | Subject_cat)` and records which fail, so the Methods
-sentence about non-convergence rests on a logged count. Three other
-specifications run as sensitivity: feature centred instead of z scored, no
-covariates, and covariates z scored too.
+Seven specifications run: `primary`, `zfeature`, `categorical`, `notrial`,
+`rawcov`, `nocov`, `randslope`. The last re-fits with a random slope and records
+which fail, so the Methods sentence about non-convergence rests on a count.
+
+### What the manuscript has to say differently
+
+"FDR-corrected across 21 features" becomes "across the seven cortical clusters".
+"No cortical feature predicted perceived difficulty" becomes "no cortical
+cluster contributed to perceived difficulty". The 21 still appear, as the
+features behind the seven tests and as the interval table, but they are no
+longer the family.
 
 ## Reading the result
 
@@ -133,7 +197,9 @@ computed rather than eyeballed.
 | `build_lmm21_features.m` | the 21 features from the `.icatimef` files |
 | `lmm21_trial_features.m` | the feature definition for one component |
 | `lmm21_feature_names.m` | the 21 names and their labels, in one place |
-| `fit_lmm21_models.m` | the loop over features and specifications, plus the FDR |
+| `lmm21_derive_terms.m` | the mediation's within/between split and trial term |
+| `fit_lmm21_models.m` | both passes: the seven cluster tests and the 21 intervals |
+| `fit_cluster_lmm.m` | one cluster, three bands together, the joint Wald test |
 | `fit_feature_lmm.m` | one feature, one model, one row |
 | `report_lmm21.m` | the report, the manuscript numbers, the LaTeX table |
 | `checks/check_lmm21.m` | the acceptance test, needs no data |

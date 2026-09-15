@@ -1,39 +1,51 @@
 function results = fit_lmm21_models(T, L)
-%FIT_LMM21_MODELS  One model per cortical feature, corrected across the 21.
+%FIT_LMM21_MODELS  Does any cortical cluster contribute to perceived difficulty?
 %
-%   RESULTS = FIT_LMM21_MODELS(T, L) fits, for each feature in turn,
+%   RESULTS = FIT_LMM21_MODELS(T, L) runs two passes over the same data, which
+%   answer two different questions and must not be confused with each other.
 %
-%     Score ~ 1 + Pressure_cat + Error + EffortIndex + EEGfeat + (1 | Subject_cat)
+%   THE TEST, one model per cluster, all three of its bands entered together:
 %
-%   by REML, with the feature z scored inside each participant, and tests the
-%   coefficient by a Wald test with Satterthwaite denominator degrees of
-%   freedom. The 21 p values are then corrected with Benjamini and Hochberg.
+%     Score ~ 1 + Pressure_ord + EffortIndex_w + Error_w + Error_b + Trial_z
+%                + EEG_theta + EEG_alpha + EEG_beta + (1 | Subject_cat)
 %
-%   T must be the behaviour table joined to the feature table, carrying the
-%   response, the condition, the covariates and the 21 feature columns.
+%   with a joint Wald test on the three band coefficients. Seven tests, one per
+%   cluster, corrected with Benjamini and Hochberg across the seven. This is
+%   the inferential claim: no cluster contributes to the rating beyond imposed
+%   pressure, effort, tracking error and trial number.
+%
+%   THE BOUND, one model per feature, the feature alone:
+%
+%     Score ~ 1 + ... + EEGfeat + (1 | Subject_cat)
+%
+%   Twenty-one fits, reported as estimates and confidence intervals with NO p
+%   and NO q attached. These are the precision statement the Discussion needs,
+%   not decisions. The coefficient here is a total effect, whereas the band
+%   coefficients inside a joint model are partial effects adjusted for the
+%   other two bands and therefore have wider intervals. "How much could left
+%   M1 alpha matter" is naturally a total, which is why the bound comes from
+%   this pass and the test comes from the other one.
+%
+%   WHY NOT 21 TESTS. Twenty-one marginal tests ask whether any single feature
+%   is detectable on its own, which has little power against an effect spread
+%   across the bands of a region, and the bands of one component are correlated
+%   through 1/f structure and spectral leakage anyway. The cluster-level
+%   question is also the one the manuscript actually asks.
+%
+%   WHY NOT ONE MODEL WITH ALL 21. Only three participants contribute a
+%   component to all seven clusters, so that model would run on three people.
+%   The per-cluster structure is forced by the clustering, not chosen.
 %
 %   RESULTS fields:
-%     all          every specification, one row per feature
-%     primary      the reported specification, sorted by p
-%     sensitivity   the rest
-%     summary      the numbers the manuscript needs
-%
-%   THREE NUMBERS GO INTO THE PAPER, and all three come from here rather than
-%   off a printed table:
-%     minQ        fills "all q >= ..." in the Results
-%     minP        fills "uncorrected p >= ..." in the same sentence
-%     maxAbsCI    the exclusion bound the Discussion sets against the 5.20
-%                 rating point demand effect
-%
-%   HOW TO READ THE RESULT. The null is exclusionary only if the intervals are
-%   narrow. A large q with a wide interval says nothing was measured; a large q
-%   with an interval inside a few tenths of a rating point is a substantive
-%   ruling out. The report prints the intervals beside the q values for exactly
-%   that reason.
+%     cluster       the seven joint tests, with q. THE TEST
+%     clusterBands  the partial band coefficients inside those models
+%     feature       the 21 single-feature fits, estimates and intervals. THE BOUND
+%     all           every specification of the cluster tests
+%     summary       the numbers the manuscript needs
 %
 %   There is no model comparison anywhere in this file, by design.
 %
-%   See also FIT_FEATURE_LMM, BH_FDR, RUN_LMM21.
+%   See also FIT_CLUSTER_LMM, FIT_FEATURE_LMM, LMM21_DERIVE_TERMS, BH_FDR.
 %
 %   Part of the KneeExo-EEG analysis code.
 
@@ -42,7 +54,7 @@ arguments
     L (1,1) struct
 end
 
-featNames = lmm21_feature_names(L);
+[featNames, meta] = lmm21_feature_names(L);
 
 missing = featNames(~ismember(featNames, T.Properties.VariableNames));
 if ~isempty(missing)
@@ -50,91 +62,157 @@ if ~isempty(missing)
         'The merged table has no column for %s.', strjoin(missing, ', '));
 end
 
-allRows = {};
+% The predictor names inside a cluster model. Constant across clusters, so the
+% formula string is constant too and the coefficients are found by exact name.
+bandVars = cellfun(@(b) ['EEG_' b], L.bandNames, 'UniformOutput', false);
+
+clusterRows = {};
+bandRowsAll = {};
+featureRows = {};
 
 for s = 1:numel(L.specs)
 
-    spec = L.specs(s);
-    formula = build_formula(L, spec);
+    spec    = L.specs(s);
+    condVar = condition_variable(L, spec);
 
-    fprintf('\n=== specification %s ===\n%s\n', spec.key, formula);
+    % ---- the test, per cluster -----------------------------------------
+    fprintf('\n=== %s : cluster tests ===\n', spec.key);
+    printed = false;
+    theseClusters = cell(size(L.clusters, 1), 1);
 
-    specRows = cell(numel(featNames), 1);
+    for c = 1:size(L.clusters, 1)
+
+        clusterName = L.clusters{c, 1};
+        cols = meta.Feature(meta.Cluster == string(clusterName));
+        cols = cellstr(cols);
+
+        keep = base_mask(T, L, spec, condVar);
+        for b = 1:numel(cols)
+            keep = keep & isfinite(T.(cols{b}));
+        end
+
+        if ~any(keep)
+            r = fit_cluster_lmm();
+            r.Cluster = string(clusterName);
+            r.Spec    = string(spec.key);
+            r.Message = "no complete cases for this cluster";
+            theseClusters{c} = r;
+            continue
+        end
+
+        W = T(keep, :);
+        [W, terms] = lmm21_derive_terms(W, L);
+
+        for b = 1:numel(cols)
+            W.(bandVars{b}) = within_subject_scale(W.(cols{b}), ...
+                W.(L.model.subject), spec.featureMode, L.model.minTrials);
+        end
+
+        formula = build_formula(L, spec, terms, condVar, bandVars);
+        if ~printed
+            fprintf('%s\n', formula);
+            printed = true;
+        end
+
+        [r, br] = fit_cluster_lmm(W, formula, bandVars, clusterName, spec, L);
+        theseClusters{c} = r;
+        bandRowsAll{end+1} = br; %#ok<AGROW>
+
+        fprintf('  %-24s N %4d  F(%d,%.0f) %7.3f  p %7.4f%s\n', ...
+            clusterName, r.N, r.DF1, r.DF2, r.FStat, r.pValue, ...
+            iff(r.Converged, '', '   FIT FAILED'));
+    end
+
+    C = vertcat(theseClusters{:});
+    C.q = bh_fdr(C.pValue, L.stats.fdrQ);
+    clusterRows{end+1} = C; %#ok<AGROW>
+
+    % ---- the bound, per feature ----------------------------------------
+    % Estimates and intervals only. No q is computed here, deliberately: the
+    % family is the seven clusters, and a q column beside these rows would
+    % invite the reader to treat them as 21 tests.
+    fprintf('\n=== %s : single-feature intervals (no test) ===\n', spec.key);
+    theseFeatures = cell(numel(featNames), 1);
 
     for k = 1:numel(featNames)
 
         fname = featNames{k};
 
-        % Complete cases first, then scale. Scaling on the rows that actually
-        % enter the model is what makes a coefficient exactly "per within
-        % participant standard deviation of the analysed data" rather than per
-        % standard deviation of a slightly different set.
-        keep = isfinite(T.(fname)) & isfinite(T.(L.model.response)) & ...
-               ~isundefined(T.(L.model.condition));
-        for c = 1:numel(spec.covariates)
-            keep = keep & isfinite(T.(spec.covariates{c}));
-        end
+        keep = base_mask(T, L, spec, condVar) & isfinite(T.(fname));
 
         if ~any(keep)
             r = fit_feature_lmm();
             r.Feature = string(fname);
             r.Spec    = string(spec.key);
-            r.Formula = string(formula);
             r.Message = "no complete cases for this feature";
-            specRows{k} = r;
+            theseFeatures{k} = r;
             continue
         end
 
         W = T(keep, :);
-
+        [W, terms] = lmm21_derive_terms(W, L);
         W.EEGfeat = within_subject_scale(W.(fname), W.(L.model.subject), ...
             spec.featureMode, L.model.minTrials);
 
-        for c = 1:numel(spec.covariates)
-            cv = spec.covariates{c};
-            W.(cv) = within_subject_scale(W.(cv), W.(L.model.subject), ...
-                spec.covariateMode, L.model.minTrials);
-        end
-
+        formula = build_formula(L, spec, terms, condVar, {'EEGfeat'});
         r = fit_feature_lmm(W, formula, spec, L);
         r.Feature = string(fname);
-        specRows{k} = r;
+        theseFeatures{k} = r;
 
-        fprintf('  %-14s N %4d  b %+7.4f  SE %6.4f  p %7.4f  [%+6.3f %+6.3f]%s\n', ...
-            fname, r.N, r.Estimate, r.SE, r.pValue, r.Lower, r.Upper, ...
+        fprintf('  %-14s N %4d  b %+7.4f  [%+6.3f %+6.3f]%s\n', ...
+            fname, r.N, r.Estimate, r.Lower, r.Upper, ...
             iff(r.Converged, '', '   FIT FAILED'));
     end
 
-    R = vertcat(specRows{:});
-    R.q = bh_fdr(R.pValue, L.stats.fdrQ);
-    allRows{end+1} = R; %#ok<AGROW>
+    featureRows{end+1} = vertcat(theseFeatures{:}); %#ok<AGROW>
 end
 
+% ---- assemble ----------------------------------------------------------
 results = struct();
-results.all = vertcat(allRows{:});
-results.all = movevars(results.all, {'Feature', 'Spec'}, 'Before', 1);
 
-isPrimary           = results.all.Spec == string(L.primarySpec);
-results.primary     = sortrows(results.all(isPrimary, :), 'pValue');
-results.sensitivity = results.all(~isPrimary, :);
+allClusters = vertcat(clusterRows{:});
+allFeatures = vertcat(featureRows{:});
+
+% The p value column stays on the feature rows for the record, but it is not
+% corrected and is not what the paper reports. Renamed so that nobody lifts it
+% into a table by accident.
+allFeatures.Properties.VariableNames{strcmp( ...
+    allFeatures.Properties.VariableNames, 'pValue')} = 'pValue_uncorrected_notReported';
+
+results.all          = allClusters;
+results.cluster      = sortrows(allClusters(allClusters.Spec == string(L.primarySpec), :), 'pValue');
+results.clusterBands = vertcat(bandRowsAll{:});
+results.featureAll   = allFeatures;
+results.feature      = allFeatures(allFeatures.Spec == string(L.primarySpec), :);
+results.sensitivity  = allClusters(allClusters.Spec ~= string(L.primarySpec), :);
 
 % ---- summary -----------------------------------------------------------
-P  = results.primary;
-ok = P.Converged;
+C  = results.cluster;
+ok = C.Converged;
 
 S = struct();
 S.spec          = L.primarySpec;
-S.nFeatures     = height(P);
+S.nClusters     = height(C);
 S.nConverged    = nnz(ok);
-S.minP          = min_or_nan(P.pValue(ok));
-S.minQ          = min_or_nan(P.q(ok));
-S.nSurvivingFDR = nnz(P.q(ok) < L.stats.fdrQ);
-S.maxAbsCI      = max_or_nan(P.MaxAbsCI(ok));
-S.medianN       = median(P.N(ok));
-S.rangeN        = [min_or_nan(P.N(ok)) max_or_nan(P.N(ok))];
-S.nSingular     = nnz(P.Singular(ok));
+S.minP          = min_or_nan(C.pValue(ok));
+S.minQ          = min_or_nan(C.q(ok));
+S.nSurvivingFDR = nnz(C.q(ok) < L.stats.fdrQ);
+S.medianN       = median(C.N(ok));
+S.rangeN        = [min_or_nan(C.N(ok)) max_or_nan(C.N(ok))];
+S.nSingular     = nnz(C.Singular(ok));
 
-rs = results.all(results.all.Spec == "randslope", :);
+% The bound: the widest single-feature interval, from the z scored
+% specification so that it is in rating points per within-participant standard
+% deviation and can be set against the 5.20 rating point demand effect.
+Fb = allFeatures(allFeatures.Spec == string(L.boundSpec) & allFeatures.Converged, :);
+S.boundSpec = L.boundSpec;
+S.maxAbsCI  = max_or_nan(Fb.MaxAbsCI);
+
+Fp = allFeatures(allFeatures.Spec == string(L.primarySpec) & allFeatures.Converged, :);
+S.maxAbsCI_dB = max_or_nan(Fp.MaxAbsCI);
+S.nFeatures   = height(Fp);
+
+rs = allClusters(allClusters.Spec == "randslope", :);
 if ~isempty(rs)
     S.randSlopeConverged = nnz(rs.Converged);
     S.randSlopeTotal     = height(rs);
@@ -148,10 +226,74 @@ end
 
 
 % ----------------------------------------------------------------------------
-function f = build_formula(L, spec)
+function keep = base_mask(T, L, spec, condVar)
+%BASE_MASK  Complete cases on everything except the EEG predictors.
 
-terms = [{'1'}, {L.model.condition}, spec.covariates(:).', {'EEGfeat'}];
-f = sprintf('%s ~ %s + %s', L.model.response, strjoin(terms, ' + '), spec.random);
+keep = isfinite(T.(L.model.response));
+
+if iscategorical(T.(condVar))
+    keep = keep & ~isundefined(T.(condVar));
+else
+    keep = keep & isfinite(T.(condVar));
+end
+
+if ~strcmp(spec.mediatorMode, 'none')
+    for m = 1:numel(L.model.mediators)
+        keep = keep & isfinite(T.(L.model.mediators{m}));
+    end
+end
+
+if spec.trialTerm
+    keep = keep & isfinite(T.(L.model.trial));
+end
+
+end
+
+
+% ----------------------------------------------------------------------------
+function v = condition_variable(L, spec)
+
+switch spec.condition
+    case 'ordinal',     v = L.model.ordinal;
+    case 'categorical', v = L.model.categorical;
+    otherwise
+        error('fit_lmm21_models:Condition', ...
+            'spec.condition must be ordinal or categorical, got %s', spec.condition);
+end
+
+end
+
+
+% ----------------------------------------------------------------------------
+function f = build_formula(L, spec, terms, condVar, eegVars)
+%BUILD_FORMULA  The mediation model's fixed effects, plus the EEG predictors.
+%
+%  eegVars is one name for a single-feature fit and three for a cluster fit.
+%  A between term that LMM21_DERIVE_TERMS found to have no variance is not in
+%  terms.between, so it never reaches the formula.
+
+fixed = {'1', condVar};
+
+switch spec.mediatorMode
+    case 'split'
+        fixed = [fixed, terms.within, terms.between];
+    case 'raw'
+        fixed = [fixed, L.model.mediators];
+    case 'none'
+        % nothing
+    otherwise
+        error('fit_lmm21_models:MediatorMode', ...
+            'spec.mediatorMode must be split, raw or none, got %s', ...
+            spec.mediatorMode);
+end
+
+if spec.trialTerm
+    fixed = [fixed, terms.trial];
+end
+
+fixed = [fixed, eegVars];
+
+f = sprintf('%s ~ %s + %s', L.model.response, strjoin(fixed, ' + '), spec.random);
 
 end
 
