@@ -32,6 +32,8 @@ data/*
 !data/*.md
 !data/derived/
 !data/derived/*/
+!data/derived/*/*.mat
+!data/derived/*/*/*.mat
 !data/derived/*.mat
 !data/derived/MANIFEST.csv
 
