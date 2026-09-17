@@ -31,7 +31,6 @@ data/derived/EMG_Data_timewarped.mat
 data/*
 !data/*.md
 !data/derived/
-data/derived/*
 !data/derived/*/
 !data/derived/*.mat
 !data/derived/MANIFEST.csv
