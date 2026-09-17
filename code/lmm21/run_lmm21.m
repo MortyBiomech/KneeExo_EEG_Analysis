@@ -96,7 +96,7 @@ add_code_paths(cfg);
 
 % Rebuild the 21 features from the .icatimef files. Needs tier 2. Leave false
 % to use the cached table in data/derived, which is what a reproducer does.
-REBUILD_FEATURES = true;
+REBUILD_FEATURES = false;
 
 L = lmm21_config(cfg);
 
@@ -202,6 +202,11 @@ results = fit_lmm21_models(T, L);
 %  ---------------------------------------------------------------------------
 
 report_lmm21(results, L, featureAudit);
+
+% The supplementary tables: the sensitivity grid and the build audit, plus the
+% intervals of every specification, which is where the standardised bound
+% quoted in the manuscript comes from.
+report_lmm21_supplement(results, L, featureAudit);
 
 % Three files, one per thing. The cluster tests carry the claim, the feature
 % intervals carry the bound, the sensitivity file holds every other

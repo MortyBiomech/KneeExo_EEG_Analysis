@@ -166,10 +166,19 @@ L.model.minTrials = 5;     % per participant, below this the feature is NaN
 % within-participant standard deviation.
 L.model.featureMode = 'center';
 
-% Random slope models did not converge, so the primary specification uses a
-% by-participant random intercept and tests each feature by its own fixed
-% effect coefficient. Specification randslope re-fits with the slope and
-% records the failures, so the Methods sentence rests on a logged count.
+% The primary specification uses a by-participant random intercept because that
+% is the random-effects structure of the mediation model these cortical terms
+% are added to. Keeping it makes the cluster test an addition to the model the
+% manuscript already reports rather than a different model.
+%
+% It is NOT because the random slope fails. It does not: specification
+% randslope fits all seven clusters without a singular fit, and it does not
+% agree with the primary about what survives correction. That disagreement is
+% a result and is reported in the Results and in the supplement. Do not
+% promote randslope to primary on the strength of it, and do not let any
+% version of the old sentence, that random slope models did not converge,
+% return to the Methods. It was true of the superseded analysis and is false
+% of this one.
 %
 % REML throughout. It is correct here because nothing is compared: every
 % feature is judged by a Wald test on its own coefficient. ML would be needed
@@ -197,7 +206,7 @@ L.specs(end+1) = spec('nocov', 'center', 'ordinal', 'none', true, ...
 
 L.specs(end+1) = spec('randslope', 'center', 'ordinal', 'split', true, ...
     '(1 + Pressure_ord | Subject_cat)', ...
-    'expected to fail, the failure is the result');
+    'the random slope for pressure, which converges and changes the answer');
 
 L.primarySpec = 'primary';
 
