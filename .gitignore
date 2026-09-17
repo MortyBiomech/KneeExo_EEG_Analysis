@@ -29,8 +29,10 @@ data/derived/EMG_Data_timewarped.mat
 # makes the figures reproducible without the raw data. They are whitelisted
 # below after the blanket ignore of data/.
 data/*
+!data/*.md
 !data/derived/
 data/derived/*
+!data/derived/*/
 !data/derived/*.mat
 !data/derived/MANIFEST.csv
 
