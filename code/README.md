@@ -8,30 +8,47 @@ manuscript. Two steps required a person's judgement and cannot be recomputed, an
 cannot be reproduced even by re-running it; their results ship as derived data and the code
 reads them back. See **Manual steps** below.
 
-Paths in this document are relative to the repository root, which is the folder above this
-one:
+Paths in this document are relative to this folder, `code/`, unless they begin with
+`data/`, `docs/` or `external/`, which sit at the repository root:
 
 ```
 <repo>/
-├── code/         this folder
+├── code/         this folder, every analysis step
+│   └── figures/  the figure and report entry points, stages 7 and 8
 ├── config -> code/config
-├── data/derived/ shipped derived data (cfg.derived)
-├── figures/      figure files written by stage 8 (cfg.figures)
+├── data/derived/ committed derived data (cfg.derived)
+├── figures/      OUTPUT directory written by stage 8 (cfg.figures), not tracked
 └── external/     third-party toolboxes as git submodules
 ```
+
+**Two different folders are called `figures`.** `code/figures/` holds the code.
+`<repo>/figures/` is where that code writes its output and is not tracked, because a
+figure is rebuilt from the data rather than stored. The stage 7 and 8 entry points named
+below are in `code/figures/`; `cfg.figures` points at the output folder.
+
+The distinction matters in `.gitignore`. The rule that hides the output folder must be
+anchored, `/figures/` and not `figures/`, because an unanchored pattern matches a folder
+of that name at any depth and silently excludes `code/figures/` as well.
 
 ---
 
 ## Quick start
 
-**To reproduce the published figures** you need tier 2 of the data release and nothing
-else. Open `figures/run_figure3.m`, press Run, and the script puts itself on the path. No
+**To reproduce Figures 3 and 4** you need tier 2 of the data release and nothing else.
+Open `figures/run_figure3.m`, press Run, and the script puts itself on the path. No
 preprocessing, no AMICA, no clustering.
 
-Figure 2 needs nothing at all. It comes from `behaviour/run_results_behaviour.m`, which
-reads four small files committed in `data/derived/`, so the whole figure, its statistics
-and its mediation run on a fresh clone with no download. Rebuilding those four from the
-raw data needs tier 3 and tier 4.
+**Three analyses need nothing at all**, because their inputs are committed in
+`data/derived/`:
+
+| Run this | Produces | Reads |
+|---|---|---|
+| `behaviour/run_results_behaviour.m` | Figure 2, its statistics, the mediation | four small tables |
+| `coupling/run_cross_correlation.m` | Figure 5, left parieto-occipital | the pairing, the warped error, the stored result |
+| `lmm21/run_lmm21.m` | the closing Results paragraphs and the supplementary tables | the cached feature table |
+
+Each of the three rebuilds its inputs from the decompositions instead if you ask it to,
+which needs tier 2; rebuilding the behaviour tables from the raw data needs tiers 3 and 4.
 
 **To re-run the whole chain**, work down the stage table in order. Budget several hours per
 participant for AMICA and several hours for the ERSP precompute, and expect to sit in front
@@ -71,6 +88,13 @@ STUDY ──► preclustered STUDY ──► one clustering solution per region
   │  precompute/run_ersp_precompute.m                          stage 5
   ▼
 .icatimef time-frequency decompositions
+  │                                                    │
+  │                                                    ├──► coupling/
+  │                                                    │    run_cross_correlation.m     C1
+  │                                                    │       Figure 5
+  │                                                    │
+  │                                                    └──► lmm21/run_lmm21.m          L1
+  │                                                            closing Results paragraphs
   │  compute/run_ersp_stats.m                                  stage 6
   ▼
 <Region>_ersp_qc_results.mat            one file per cluster
@@ -100,6 +124,26 @@ The behaviour branch, which runs off stage 2 and never rejoins:
 | B1 | Master tables | `behaviour/run_build_masters.m` | per-trial EEG, EMG and experiment data | `emg_master_*.mat`, `trk_master_*.mat`, `behaviour_table.mat` |
 | B2 | Behaviour results | `behaviour/run_results_behaviour.m` | the masters and the behaviour table | Figure 2, statistics, mediation |
 
+Two further analyses hang off stage 5 rather than continuing the chain. Both read the
+single-trial decompositions, and neither feeds anything downstream:
+
+| # | Analysis | Entry point | Reads | Writes | README |
+|---|---|---|---|---|---|
+| C1 | Power against tracking error across the movement cycle | `coupling/run_cross_correlation.m` | `.icatimef` (stage 5), the epoched experiment data (stage 2), the STUDY (stage 4), `SUBJECTS_ICS` | Figure 5, `epoch_pairing_map.mat`, `tracking_error_warped.mat`, `figure5_coupling_<cluster>.mat` | [`coupling/README.md`](coupling/README.md) |
+| L1 | Does trial-level cortical band power predict the rating? | `lmm21/run_lmm21.m` | `.icatimef` (stage 5), `behaviour_table.mat` (B1), `SUBJECTS_ICS`, `epoch_pairing_map.mat` (C1) | `lmm21_features.mat`, the cluster tests, the 21 intervals, the sensitivity grid, two LaTeX tables | [`lmm21/README.md`](lmm21/README.md) |
+
+**Their dependencies differ, which matters if you are running only one of them.** C1 needs
+stage 2, stage 4 and stage 5 but never touches the behaviour tables. L1 needs stage 5 and
+the behaviour table from B1, and it needs the epoch pairing, which is a C1 artefact: it is
+built by `coupling/build_epoch_pairing.m` and cached in `data/derived`. So L1 is downstream
+of both branches, while C1 is downstream of neither.
+
+C1 and L1 share `coupling/load_cluster_power.m`, the reader for the single-trial
+decompositions, deliberately. One reader for both is what lets the Methods say that the
+cross-correlation and the trial-level null describe the same signal. The pairing is shared
+for the same reason, and because it reads the `urevent` tables rather than any cluster
+solution it is built once and does not need rebuilding when the cluster changes.
+
 **Stage 2 is a branch, not a link in the chain.** It produces the per-trial EEG, EMG and
 experiment data that the behaviour branch consumes. Stage 3 goes back to the cleaned
 datasets from stage 1. You can skip stage 2 and the whole B branch and still reach the
@@ -121,10 +165,13 @@ set of reported clusters and you re-run stage 7 and redraw every figure.
 | `config/` | `kneeexo_config.m`, the single place any path is written down, plus `add_code_paths.m` and `ersp_params.m` |
 | `data_processing/` | XDF import, BIDS conversion, event construction, cleaning, AMICA, per-trial extraction |
 | `precompute/` | epoching, time warping, and the ERSP precompute that writes `.icatimef` |
-| `behaviour/` | perceived difficulty, tracking error, muscular effort, mediation, Figure 2. See `behaviour/README.md` |
 | `study/` | STUDY construction, component screening, preclustering, repeated clustering, anatomical labels |
 | `compute/` | ERSP statistics, producing the `.mat` files the figures read |
-| `figures/` | the manuscript figures, the statistics reports, and the FDR family |
+| `figures/` | the manuscript figures, the statistics reports, and the FDR family. Its output goes to `<repo>/figures/`, which is a different folder |
+| `behaviour/` | perceived difficulty, tracking error, muscular effort, mediation, Figure 2. See `behaviour/README.md` |
+| `coupling/` | parieto-occipital band power against tracking error across the movement cycle, Figure 5. See `coupling/README.md` |
+| `lmm21/` | whether trial-level cortical band power predicts perceived difficulty over and above pressure, error and effort. No figure; it produces the closing Results paragraphs and a supplementary table. See `lmm21/README.md` |
+| `common/` | helpers that more than one analysis needs and that belong to none of them: `bh_fdr.m`, Benjamini and Hochberg; `within_subject_scale.m`, within-participant centring and z scoring |
 | `vendor/` | third-party and forked functions that run, each with its licence. See `vendor/README.md` |
 | `archive/` | superseded code, kept for the record, **never on the path**. See `archive/README.md` |
 
@@ -176,8 +223,16 @@ Two participant lists exist on purpose. `cfg.subjects` is 5 to 18, the group ana
 Participants 1 to 4 lost most of their EEG recording and are excluded for that reason.
 `cfg.subjectsEMG` additionally drops sub-10, which has no usable EMG.
 
-Frequency bands are defined once, in `cfg.bands`. Anything that needs band edges reads them
-from there, so the FDR family cannot be built against a second definition that has drifted.
+Frequency bands are defined once, in `cfg.bands`: theta 4 to 8, alpha and mu 8 to 14, beta
+14 to 30 Hz, plus a gamma band that the reported analyses do not use. The stage 7 FDR
+family, `coupling/` and `lmm21/` all read the edges from there and none of them declares
+its own, so the three cannot drift apart and then be compared as though they had not.
+
+One detail is not uniform and is worth knowing before you compare numbers across folders.
+`coupling/prepare_trial_matrices.m` and `lmm21/lmm21_trial_features.m` take the lower edge
+as inclusive and the upper as exclusive, so adjacent bands never share a bin.
+`compute/flag_bad_trials.m` includes both edges. That is the only place the convention
+differs, and it screens trials rather than forming a feature.
 
 ---
 
@@ -225,8 +280,8 @@ datasets are published rather than only the raw data.
 
 | Tier | Contents | Where | Reproduces |
 |---|---|---|---|
-| 1 | code, event tables, encoder events, component selection, the three behaviour tables, and the precomputed Figure 2 curves | this repository | the later stages given tier 2, and the whole behavioural Results including Figure 2, on its own |
-| 2 | `.icatimef`, `SUBJECTS_ICS`, the STUDY files | DOI `<fill in>` | Figures 3 and 4, exactly |
+| 1 | code, event tables, encoder events, component selection, the three behaviour tables, the precomputed Figure 2 curves, the epoch pairing, the warped tracking error, the stored Figure 5 result and the `lmm21` feature cache | this repository | the later stages given tier 2, and on its own the whole behavioural Results including Figure 2, Figure 5 for the left parieto-occipital cluster, and the whole trial-level cortical LMM |
+| 2 | `.icatimef`, `SUBJECTS_ICS`, the STUDY files | DOI `<fill in>` | Figures 3 and 4 exactly, Figure 5 for any other cluster, and a rebuild of the `lmm21` features |
 | 3 | `sub-N_cleaned_with_ICA.set` with AMICA weights, DIPFIT and ICLabel, the epoched EEG datasets, and the per-subject master files | DOI `<fill in>` | clustering onwards, and the cycle-resolved panels of Figure 2 |
 | 4 | raw recordings in BIDS, and the stage 2 per-trial data | `<OpenNeuro accession>` | everything except the manual steps |
 
@@ -280,6 +335,7 @@ repository. `add_code_paths` warns when BeMoBIL resolves outside `cfg.bemobil`, 
 
 Analysis code by Morteza Khosrotabar, Lauflabor Locomotion Lab, TU Darmstadt.
 Several functions derive from work by Noelle Jacobsen, Amanda Studnicki and Joe Gwinn. See
-`CREDITS.md` at the repository root, and the headers in `vendor/` and `archive/`.
+`Credits.md` at the repository root, and the headers in `vendor/` and `archive/`.
 
-Released under GPL-3.0, because the forked functions it redistributes are GPL-3.0.
+Released under GPL-3.0-or-later, because the forked functions it redistributes are
+GPL-3.0. See `LICENSE` and `Credits.md` at the repository root.
