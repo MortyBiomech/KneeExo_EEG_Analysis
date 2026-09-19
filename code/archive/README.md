@@ -12,6 +12,27 @@ wrong result quietly.
 
 If you are looking for the function that actually runs, see `code/README.md`.
 
+## Two entries that do not match their file
+
+**`results_behaviour_sep07.m` was called `RESULTS_BEHAVIOUR.m`** in the working
+tree, and it is renamed here because it cannot keep that name. This folder
+already holds `results_behaviour.m`, and the two differ only in case. Git
+stores both happily, being case sensitive, but Windows and macOS checkouts
+cannot hold both in one folder: one silently overwrites the other and `git
+status` then reports a modification that cannot be cleared. Any future file
+added here needs the same check against the names already present.
+
+**`show_gui_for_file_selection.m` is not archived.** It is live at
+`data_processing/show_gui_for_file_selection.m`, so the paragraph below
+describing it as removed from the pipeline is out of date and should be checked
+against what the file now does.
+
+Separately, `tracking_error_analysis.m` is in neither place. It is the only
+code in the project carrying the TOST equivalence tests and the JZS Bayes
+factors, and the note at the end of this file records it as pending a port
+rather than superseded. It is not in the repository at all, so it currently
+exists only in the original working tree.
+
 ## Superseded entry points
 
 ### `main.m`
@@ -20,6 +41,39 @@ plotting in the bottom half. Split into `precompute/run_ersp_precompute.m` and
 the `figures/` entry points, because the two halves need different inputs,
 take very different amounts of time, and were never actually run together.
 Useful if you want to see the original order of operations in one place.
+
+### `precompute_timewarped_ersp.m`
+`[STUDY, ALLEEG] = precompute_timewarped_ersp(STUDY, ALLEEG, p, warpMode)`, the
+direct ancestor of `precompute/run_ersp_precompute.m`. It took a `warpMode` of
+`'groupmedian'` or `'subject'`, so the choice the live pipeline fixes, warping
+every participant onto the group median latencies, was a runtime argument here.
+Kept because it is where that choice is visible as a choice.
+
+### `std_precomp_timewarp.m`
+A second fork of EEGLAB's `std_precomp` in the repository. The one that runs is
+`vendor/mod_std_precomp_v_forEEGlabv2021.m`; this file is a rename of it, and
+its own FORK NOTICE says so.
+
+**It is not simply an older copy.** Ignoring comments and blank lines the two
+still differ in about ninety lines, and the difference is in the flag detection
+that decides whether the per-participant substitutions fire at all. This file
+guards them, requiring `isscalar(tw_value) && tw_value == 0` for the warp
+placeholder and testing `~isempty(g.erspparams)`; the vendor copy tests
+`isfield(g, 'erspparams')` and compares `g.erspparams{i+1} == 0` without a
+scalar guard, which is an array comparison if a vector is ever passed. This
+file also errors out when called with fewer than three arguments and carries
+the documented FORK NOTICE.
+
+So the archived file is arguably the tidier of the two and the live pipeline
+runs the other one. That is the reverse of what this folder is supposed to
+mean, and it should be resolved rather than left as a note: either promote
+this version into `vendor/` under the name the pipeline calls, or record why
+the looser one is the one that ran.
+
+**Meanwhile this is exactly the shadowing hazard the warning at the top of this
+file is about.** Two files fork the same EEGLAB function, they do not behave
+identically, and `which -all` is the only way to find out which one a call
+reached. Do not put `archive/` on the path.
 
 ### `Main_epoch_selection.m` and its four variants
 `main_epoch_selection_TrialsBased.m`, `main_epoch_selection_FlexionsBased.m`,
@@ -100,7 +154,7 @@ is the function that answers it.
 ## Superseded plotting
 
 ### `my_plotERSPSfromSTUDY.m`
-The original cluster ERSP figure code, 63 kB of it. Replaced by
+The original cluster ERSP figure code, 62,175 bytes of it. Replaced by
 `figures/plot_cluster_pair_figure.m` together with
 `figures/load_cluster_pair_data.m` and `figures/report_cluster_pair_stats.m`.
 
@@ -114,9 +168,28 @@ the run path even though the current figure code does not use it.
 
 ### `calldefinedcolormap.m`
 Replaced by `figures/ersp_colormap.m`. There were eighteen copies of this
-function across the old folders; the six that were checked are byte-for-byte
-identical (256 x 3 table, md5 `1b9446c0ce`), so one copy is kept here as the
-reference.
+function across the old folders.
+
+**Sixteen of them are in this folder**, `calldefinedcolormap.m` plus
+`calldefinedcolormap2.m` through `calldefinedcolormap16.m`, not the single
+reference copy an earlier version of this paragraph claimed. They are not
+byte-for-byte identical: each declares its own function and output name, the
+files run from 3,769 to 9,350 bytes, and no two md5 sums match. What matters is
+the table inside, and comparing those numerically gives three groups:
+
+| Files | Table |
+|---|---|
+| `calldefinedcolormap.m`, `2` to `10`, `13`, `14`, `15` | 256 x 3, all thirteen numerically identical to the last digit |
+| `calldefinedcolormap11.m` | 256 x 3, but up to 0.0588 per channel away from the reference, about 15 of 255 steps |
+| `calldefinedcolormap12.m` | 256 x 3, but up to 0.415 per channel away, about 106 of 255 steps |
+| `calldefinedcolormap16.m` | not a colormap. One row of 201 negative values, a different quantity under a `calldefinedcolormap*` name |
+
+So the thirteen are safe to treat as one table and the last three are not.
+**11 and 12 are visibly different colormaps**, not rounding variants, so any
+figure drawn with either does not share the reference palette. Worth resolving
+before the set is reduced to one file.
+
+`calldefinedcolormap.m` is the reference the paragraph below compares against.
 
 `ersp_colormap.m` reproduces this table from seven anchor colours and
 interpolation. The two agree to a maximum of 4.85e-7 per channel, which is
@@ -152,7 +225,7 @@ group **cannot run at all** against the rebuilt masters.
 `results_behaviour.m` holds the statistics, all three rows of Figure 2 and the
 mediation in one run, deliberately: an analysis script and a figure script are
 tidier but let the p value in a bracket drift away from the p value in the
-sentence. These four are the stages it was assembled from.
+sentence. These five are the stages it was assembled from.
 
 - **`make_figure2.m`** drew rows 1 and 2 and computed only what the
   annotations needed.
@@ -163,10 +236,11 @@ sentence. These four are the stages it was assembled from.
   merged file at section 7.
 - **`mediation_row.m`** drew row 3 from that saved file. Its path diagram
   survives as the `drawBox` and `drawArrow` local functions.
-- **`RESULTS_BEHAVIOUR.m`** (the 7 September copy) is an earlier state of the
-  merged file itself. Kept because `figures/bandstats/cluster_perm_1d.m` was
-  ported verbatim from it, so the EEG band statistics and Figure 2 use
-  identical code, and this is the file that proves it.
+- **`results_behaviour_sep07.m`** (the 7 September copy, named
+  `RESULTS_BEHAVIOUR.m` in the working tree) is an earlier state of the merged
+  file itself. Kept because `figures/bandstats/cluster_perm_1d.m` was ported
+  verbatim from it, so the EEG band statistics and Figure 2 use identical code,
+  and this is the file that proves it.
 
 ### Built on the old trial numbering, cannot be run
 

@@ -45,7 +45,15 @@ judged good or bad. Position never carries identity.
 | `screen_epochs.m` | the single definition of a valid trial |
 | `build_behaviour_table.m` | epochs to trials, normalise within subject, join the modalities |
 | `run_results_behaviour.m` | **Entry point B2.** Statistics, all three rows of Figure 2, mediation |
+| `build_stamp.m` | the provenance struct saved beside every table: when, by which builder, that builder's file date, the git commit, the subject list |
 | `checks/` | one-off diagnostics, not on the run path. See below |
+
+`build_stamp` is no longer only a behaviour helper. `lmm21/` calls it directly,
+for both the feature cache and the results file, and `coupling/` carries a local
+`coupling_stamp` that mirrors it because `build_stamp` cannot yet take an
+arbitrary builder path. If it is ever generalised, it belongs in `../common/`
+with `bh_fdr` and `within_subject_scale`, and the coupling copy should be
+deleted in the same change.
 
 Run order: `run_build_masters` once, then `checks/acceptance_test`, then
 `run_results_behaviour`.

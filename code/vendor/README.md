@@ -6,8 +6,17 @@ its own folder so that the boundary between "our analysis" and "somebody
 else's function we had to modify" is visible at a glance, and so that anyone
 auditing the pipeline knows exactly which behaviour is not stock EEGLAB.
 
-Everything here is on the run path. Do not confuse this folder with
-`archive/`, which is not.
+This folder is on the MATLAB path, unlike `archive/`, which is not. That is not
+the same as every file in it being called. Two are called by the live pipeline
+and three are kept for the reasons given against each below:
+
+| File | Called by |
+|---|---|
+| `mod_std_precomp_v_forEEGlabv2021.m` | `precompute/run_ersp_precompute.m`, live |
+| `std_stat_clusterpval.m` | `compute/ersp_cluster_stats.m`, live |
+| `std_erspplot_myparams.m` | only `archive/my_plotERSPSfromSTUDY.m` |
+| `repeated_clustering_and_evaluation_custom.m` | nothing at present, see its entry below |
+| `vline.m` | only `archive/my_plotERSPSfromSTUDY.m` |
 
 **The BeMoBIL pipeline is not here.** It runs unmodified, so it is tracked as
 a git submodule under `external/bemobil-pipeline` and pinned to the commit the
@@ -59,7 +68,8 @@ Fork of EEGLAB's `std_precomp`. Written by Noelle Jacobsen and Amanda
 Studnicki, following an earlier edit by Joe Gwinn. Used by
 `precompute/run_ersp_precompute.m` to write the `.icatimef` files.
 
-Two additions over stock `std_precomp`, both inside the per-participant loop:
+Two additions over stock `std_precomp`, both inside the per-participant loop,
+implemented as three substitutions:
 
 * **Per-participant warp latencies.** Two substitutions, each with its own
   placeholder, decided once at parse time:
@@ -131,9 +141,16 @@ this explicitly.
 ### `std_erspplot_myparams.m`
 
 Fork of EEGLAB's `std_erspplot`, third from the Jacobsen line. Takes an extra
-first argument, `myparams`, and overrides `paramsersp` with it at the two
-points where the stock function would otherwise read the parameters stored in
-the STUDY (lines 253 and 444).
+**third** positional argument, `myparams`, after `STUDY` and `ALLEEG`:
+
+```matlab
+[STUDY, allersp, alltimes, allfreqs, pgroup, pcond, pinter, events] = ...
+    std_erspplot_myparams(STUDY, ALLEEG, myparams, varargin)
+```
+
+It overrides `paramsersp` with that argument at the two points where the stock
+function would otherwise read the parameters stored in the STUDY (lines 253 and
+444).
 
 This matters because the parameters stored in a STUDY are whatever was last
 written there by any GUI action, while the parameters the `.icatimef` files
@@ -150,8 +167,13 @@ against, and because `archive/my_plotERSPSfromSTUDY.m` calls it.
 
 ### `repeated_clustering_and_evaluation_custom.m`
 
-Fork of BeMoBIL's `bemobil_repeated_clustering_and_evaluation`. Called by
-`study/run_group_clustering.m`.
+Fork of BeMoBIL's `bemobil_repeated_clustering_and_evaluation`.
+
+**Nothing in the repository calls it.** `study/run_group_clustering.m` calls the
+stock BeMoBIL function instead, at its line 250. Either this fork is a leftover
+and the split described below is no longer how the region solutions are
+produced, or `run_group_clustering.m` should be calling it and does not. Settle
+which before relying on the paragraph that follows.
 
 The BeMoBIL original does the repeated clustering, builds the multivariate
 data, ranks the solutions and saves the top five in one call. This version
@@ -172,8 +194,10 @@ Brandon Kuczenski, 2001, from the MATLAB File Exchange. Draws vertical lines
 with optional labels. Unmodified. BSD 2-clause, licence text alongside it as
 that licence requires.
 
-**Called only by `archive/my_plotERSPSfromSTUDY.m`,** at twelve places, and by
-nothing that runs. The current figure code draws its event markers in
+**Called only by `archive/my_plotERSPSfromSTUDY.m`,** and by nothing that runs.
+Twelve `vline(` occurrences appear in that file, but six of them are commented
+out (lines 650, 653, 809, 812, 1220, 1222), so six are live calls (lines 651,
+654, 810, 813, 1335, 1337). The current figure code draws its event markers in
 `figures/draw_timewarp_events.m`, which does not use vline. It is kept here
 rather than in `archive/` so that the archived plotting script can still be
 run for comparison without hunting the File Exchange, and because a licence
@@ -190,7 +214,7 @@ wins.
 `std_erspplot_myparams.m` come from Noelle Jacobsen's
 [ExoAdapt-DualEEG-Processing](https://github.com/jacobsen-noelle/ExoAdapt-DualEEG-Processing),
 which is GPL-3.0. Redistributing them means this repository is GPL-3.0 too.
-See `CREDITS.md` at the repository root for the per-file attribution and what
+See `Credits.md` at the repository root for the per-file attribution and what
 GPL-3.0 requires in practice.
 
 The EEGLAB functions they fork are themselves GPL-2.0-or-later (Delorme &

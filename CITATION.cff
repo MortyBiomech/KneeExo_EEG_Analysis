@@ -8,9 +8,9 @@ authors:
   - given-names: Morteza
     family-names: Khosrotabar
     email: mkhosrotabar@gmail.com
-    # orcid: 'https://orcid.org/0000-0000-0000-0000'   # TODO add
-    # affiliation: ''                                   # TODO add
-license: MIT
+    orcid: 'https://orcid.org/0000-0002-7143-5285'
+    affiliation: 'Lauflabor Locomotion Laboratory, TU Darmstadt' 
+license: GPL-3.0-or-later
 repository-code: 'https://github.com/MortyBiomech/KneeExo_EEG_Analysis'
 keywords:
   - mobile brain/body imaging
@@ -20,7 +20,8 @@ keywords:
   - exoskeleton
   - pneumatic artificial muscle
   - motor control
-  - perceived exertion
+  - perceived difficulty
+  - physical demand
 # Uncomment and complete once the paper is published, and add the Zenodo DOI
 # for this repository under identifiers.
 #

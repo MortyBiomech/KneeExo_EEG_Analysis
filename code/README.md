@@ -308,6 +308,11 @@ git clone --recurse-submodules <this repository>
 git submodule update --init
 ```
 
+MATLAB R2025b, which is the version the Methods section names. Nothing here is known to
+need it specifically, but `meanEffectSize` and the `arguments` blocks in `coupling/` and
+`lmm21/` both rule out older releases, so treat R2025b as the tested version rather than
+the minimum.
+
 MATLAB toolboxes: Statistics and Machine Learning (`knnsearch`, `meanEffectSize`), Image
 Processing (`bwboundaries`), Parallel Computing (bootstrap effect sizes).
 

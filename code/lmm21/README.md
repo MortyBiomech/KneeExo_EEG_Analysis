@@ -168,8 +168,32 @@ an impossible negative dAIC, and the likelihood ratio disagreeing with the Wald
 test by orders of magnitude. Those numbers must not be used.
 
 Seven specifications run: `primary`, `zfeature`, `categorical`, `notrial`,
-`rawcov`, `nocov`, `randslope`. The last re-fits with a random slope and records
-which fail, so the Methods sentence about non-convergence rests on a count.
+`rawcov`, `nocov`, `randslope`.
+
+### Why the random intercept is primary, and what `randslope` does
+
+`primary` uses a by-participant random intercept because that is the
+random-effects structure of the mediation model these cortical terms are added
+to. Keeping it makes the cluster test an addition to the model the manuscript
+already reports rather than a different model.
+
+**It is not because the random slope fails. It does not fail.** `randslope`
+fits all seven clusters without a singular fit, and it does not agree with
+`primary` about what survives correction. That disagreement is a result, it is
+reported in the Results and in the supplement, and it is why the closing
+paragraphs describe an unresolved finding with a bound rather than a clean null.
+
+Two things follow. Do not promote `randslope` to primary on the strength of it.
+And do not let any version of the old sentence, that random slope models did not
+converge, return to the Methods or to a comment in this folder: it was true of
+the superseded likelihood-ratio analysis and is false of this one. The paragraph
+above about the convergence artifact is about that superseded analysis, not this
+one, and the two must not be run together.
+
+`report_lmm21` prints which specifications disagree with the primary about what
+survives. That is the guard that matters: a re-run that quietly changed the
+answer under some specification would otherwise leave the manuscript describing
+a result the code no longer produces.
 
 ### What the manuscript has to say differently
 
@@ -201,12 +225,19 @@ computed rather than eyeballed.
 | `fit_lmm21_models.m` | both passes: the seven cluster tests and the 21 intervals |
 | `fit_cluster_lmm.m` | one cluster, three bands together, the joint Wald test |
 | `fit_feature_lmm.m` | one feature, one model, one row |
-| `report_lmm21.m` | the report, the manuscript numbers, the LaTeX table |
+| `report_lmm21.m` | the report, the manuscript numbers, the cluster and interval LaTeX tables |
+| `report_lmm21_supplement.m` | the supplementary tables: the sensitivity grid, the build audit, and the intervals under every specification |
 | `checks/check_lmm21.m` | the acceptance test, needs no data |
 
+`run_lmm21` calls `report_lmm21_supplement` immediately after `report_lmm21`.
+It is what makes the standardised bound traceable to a file rather than to the
+console, in `lmm21_feature_intervals_all.csv`.
+
 `bh_fdr` and `within_subject_scale` are in `../common/` because they are generic.
-`bh_fdr` is also what should close the open item in `methods-pending.md`, where
-the Benjamini-Hochberg values in the Figure 5 paragraph were computed by hand.
+`bh_fdr` is also what should close the open item in the manuscript's pending
+Methods notes, where the Benjamini-Hochberg values in the Figure 5 paragraph
+were computed by hand. Those notes are kept with the manuscript, not in this
+repository.
 
 The reader is `load_cluster_power`, borrowed from `coupling/` unchanged. Using one
 reader for both analyses is what lets the Methods say the null and the
@@ -225,7 +256,19 @@ so it runs on a fresh clone. Set `REBUILD_FEATURES = true` to rebuild from the
 carries a version and a cluster list, and the entry point refuses a cache that
 does not match the configuration rather than loading it and misreading it.
 
-Outputs go to `figures/LMM21/`, alongside `ERSP_QC/` and `Figure5/`.
+Outputs go to `<repo>/figures/LMM21/`, alongside `ERSP_QC/` and `Figure5/`. That
+is the output folder at the repository root, `cfg.figures`, not the code folder
+`code/figures/`.
+
+| Written by | File |
+|---|---|
+| `run_lmm21` | `lmm21_cluster_tests.csv`, `lmm21_feature_intervals.csv`, `lmm21_sensitivity.csv`, `lmm21_results.mat` |
+| `report_lmm21` | `lmm21_stats_report.txt`, `lmm21_cluster_table.tex`, `lmm21_supplementary_table.tex`, `lmm21_feature_audit.csv` |
+| `report_lmm21_supplement` | `lmm21_sensitivity_table.tex`, `lmm21_audit_table.tex`, `lmm21_feature_intervals_all.csv` |
+
+Both tables are ordered by the cluster order of `lmm21_config`, not by p, so
+that the left and right of a pair sit together and the reader is not invited to
+read the ranking as the finding.
 
 ## What is not in this folder any more
 
