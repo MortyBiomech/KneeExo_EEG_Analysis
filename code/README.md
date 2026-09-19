@@ -342,5 +342,5 @@ Analysis code by Morteza Khosrotabar, Lauflabor Locomotion Lab, TU Darmstadt.
 Several functions derive from work by Noelle Jacobsen, Amanda Studnicki and Joe Gwinn. See
 `Credits.md` at the repository root, and the headers in `vendor/` and `archive/`.
 
-Released under GPL-3.0-or-later, because the forked functions it redistributes are
+Released under GPL-3.0-only, because the forked functions it redistributes are
 GPL-3.0. See `LICENSE` and `Credits.md` at the repository root.

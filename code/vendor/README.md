@@ -217,8 +217,26 @@ which is GPL-3.0. Redistributing them means this repository is GPL-3.0 too.
 See `Credits.md` at the repository root for the per-file attribution and what
 GPL-3.0 requires in practice.
 
-The EEGLAB functions they fork are themselves GPL-2.0-or-later (Delorme &
-Makeig, 2004). BeMoBIL's pipeline is MIT (Klug et al., 2022).
+**The EEGLAB functions they fork are not what makes this repository copyleft.**
+The headers of the vendored copies are BSD 2-Clause, Copyright Arnaud Delorme,
+SCCN, INC, UCSD, which is permissive. EEGLAB's own top-level README still says
+GPL, so the project's licensing is not stated consistently upstream; the
+per-file header is the one that governs the file in front of you, and here it
+is BSD. `vline.m` is BSD 2-Clause as well, and BeMoBIL's pipeline is MIT (Klug
+et al., 2022).
+
+The copyleft comes from one place only, Jacobsen's repository. Her
+modifications to those EEGLAB functions, and her original files, are her
+copyright and she released them under GPL-3.0. Shipping them, and files derived
+from them, is what makes the combined work GPL-3.0.
+
+Note that no file in this repository carries a per-file licensing notice, and
+none of the upstream files grants "version 3 or, at your option, any later
+version". The GNU project treats that permission as something the notice has to
+state, not something a bare `LICENSE` file implies, so the identifier for this
+work is **GPL-3.0-only** rather than GPL-3.0-or-later. See
+<https://www.gnu.org/licenses/gpl-faq.html#VersionThreeOrLater> and
+<https://www.gnu.org/licenses/gpl-howto.html>.
 
 ## References
 

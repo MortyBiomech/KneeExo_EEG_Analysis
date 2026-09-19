@@ -10,7 +10,7 @@ constant rate, and the task was to keep the marker on the reference. The
 reference was individualised for each participant beforehand, from one minute
 of free movement in the exoskeleton with the PAM detached, so the movement to
 be tracked was the same at every level of demand.
- 
+
 **The exoskeleton imposed demand; it did not assist.** The PAM was routed over
 the anterior aspect of the knee, so pressurising it produced a knee-extension
 torque that the wearer worked against during flexion and restrained during
@@ -18,11 +18,11 @@ early extension. Supply pressure was set to Low (1 bar), Medium (3 bar) or High
 (6 bar), a six-fold range. Because only the imposed load changed while the
 reference stayed fixed, differences across the three levels are read as
 physical demand rather than as a change in the required movement.
- 
+
 After each 20-second trial, participants verbally rated perceived difficulty
 from 1 (easy) to 10 (difficult). Each participant completed 120 trials, 40 per
 level, in permuted blocks of three across four sessions in one day.
- 
+
 Three streams were recorded and synchronised through the Lab Streaming Layer.
 64-channel EEG (actiCAP slim with a LiveAmp amplifier, 500 Hz, referenced
 online to FCz), surface EMG of four right-leg muscles (Trigno Avanti, 2000 Hz),
@@ -32,11 +32,11 @@ PAM force was recorded from a load cell in six participants only, and the
 manuscript does not report force. The experiment stream has no fixed sample
 rate, because samples were pushed as they became available, so aligning it
 rests on its per-sample LSL timestamps.
- 
+
 > **Status.** This repository accompanies a manuscript in preparation. Figure
 > and section numbers refer to that manuscript and may change before
 > publication.
- 
+
 ---
 
 ## Start here
@@ -154,14 +154,25 @@ the manuscript for their location and access conditions.
 
 Copyright (c) 2026 Morteza Khosrotabar.
 
-Released under **GPL-3.0-or-later**, see [LICENSE](LICENSE). The licence is not
-a free choice: `code/vendor/` redistributes forked EEGLAB functions from Noelle
-Jacobsen's GPL-3.0 repository, and GPL-3.0 is copyleft, so it applies to this
-work as a whole. [`Credits.md`](Credits.md) records the provenance file by file
-and what the licence requires in practice: the original copyright and author
-notices stay intact in every file that came from upstream, each modified file
-states what was changed, and the source stays available to anyone who receives
-the code.
+Released under **GPL-3.0-only**, see [LICENSE](LICENSE).
+
+The licence is not a free choice. `code/vendor/` ships forked EEGLAB functions
+taken from Noelle Jacobsen's repository, and `code/precompute/`, `code/study/`
+and `code/archive/` hold files derived from the same source. That repository is
+GPL-3.0, GPL-3.0 is copyleft, and it therefore applies to this work as a whole.
+The EEGLAB originals are not the reason. Their own headers are BSD 2-Clause,
+which is permissive, so it is Jacobsen's modifications and her repository
+licence that bind, not EEGLAB's.
+
+The identifier is `GPL-3.0-only` rather than `GPL-3.0-or-later` because no file
+in the chain grants the "or, at your option, any later version" permission, and
+the GNU project treats that permission as something a licensing notice must
+state explicitly.
+
+[`Credits.md`](Credits.md) records the provenance file by file and what the
+licence requires in practice. The original copyright and author notices stay
+intact in every file that came from upstream, each modified file states what was
+changed, and the source stays available to anyone who receives the code.
 
 If you use this code, please cite the manuscript and this repository; see
 [CITATION.cff](CITATION.cff).
@@ -174,11 +185,14 @@ If you use this code, please cite the manuscript and this repository; see
   Superseded code is kept in `code/archive/`, which is never on the path, so
   that earlier answers stay recoverable. Analyses not reported in the
   manuscript are not included.
-- Participant exclusions differ by analysis and are not interchangeable. The
-  nominal list is 5 to 18; participants 1 to 4 lost most of their EEG
-  recording. EMG analyses additionally exclude sub-10, which has no usable EMG.
-  `cfg.subjects` and `cfg.subjectsEMG` carry the two lists, and each script
-  states which it uses.
+- **Fourteen participants, numbered `sub-5` to `sub-18`.** The numbering starts
+  at 5 because participants 1 to 4 were preliminary and lost most of their EEG
+  recording; they are not part of the study and are not mentioned in the
+  manuscript. The highest number being 18 is not a participant count.
+  `cfg.subjects` carries that list of 14. `cfg.subjectsEMG` additionally drops
+  sub-10, which has no usable EMG, so every analysis involving the effort index
+  rests on 13. Each script states which list it uses, and the two are not
+  interchangeable.
 - The experimental protocol changed after sub-9, in the beep encoding and in
   the timing of the pressure change, so code touching raw streams branches on
   `subject_id > 9`.

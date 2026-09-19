@@ -9,8 +9,8 @@ authors:
     family-names: Khosrotabar
     email: mkhosrotabar@gmail.com
     orcid: 'https://orcid.org/0000-0002-7143-5285'
-    affiliation: 'Lauflabor Locomotion Laboratory, TU Darmstadt' 
-license: GPL-3.0-or-later
+    affiliation: 'Lauflabor Locomotion Laboratory, TU Darmstadt'
+license: GPL-3.0-only
 repository-code: 'https://github.com/MortyBiomech/KneeExo_EEG_Analysis'
 keywords:
   - mobile brain/body imaging
