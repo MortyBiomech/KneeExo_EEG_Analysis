@@ -2,17 +2,41 @@
 
 Analysis code for the KneeExo-EEG mobile brain/body imaging (MoBI) study.
 
-Participants performed a seated knee flexion and extension angle-tracking task
-while wearing a knee exoskeleton driven by a pneumatic artificial muscle (PAM)
-at three assistance pressures (1, 3 and 6 bar). Each trial was rated for
-perceived difficulty on a 1 to 10 scale. Recorded modalities: 64-channel EEG
-(LiveAmp, 500 Hz), 6-channel EMG (Delsys Trigno, 2000 Hz), and knee encoder,
-reference angle and force sensor signals, all captured together over LSL.
-
+Fourteen participants performed a seated visuomotor pursuit-tracking task with
+the right leg while wearing a custom single-degree-of-freedom knee exoskeleton
+actuated by a pneumatic artificial muscle (PAM). Knee angle set the vertical
+position of a marker on a display, a reference sinusoid scrolled past at a
+constant rate, and the task was to keep the marker on the reference. The
+reference was individualised for each participant beforehand, from one minute
+of free movement in the exoskeleton with the PAM detached, so the movement to
+be tracked was the same at every level of demand.
+ 
+**The exoskeleton imposed demand; it did not assist.** The PAM was routed over
+the anterior aspect of the knee, so pressurising it produced a knee-extension
+torque that the wearer worked against during flexion and restrained during
+early extension. Supply pressure was set to Low (1 bar), Medium (3 bar) or High
+(6 bar), a six-fold range. Because only the imposed load changed while the
+reference stayed fixed, differences across the three levels are read as
+physical demand rather than as a change in the required movement.
+ 
+After each 20-second trial, participants verbally rated perceived difficulty
+from 1 (easy) to 10 (difficult). Each participant completed 120 trials, 40 per
+level, in permuted blocks of three across four sessions in one day.
+ 
+Three streams were recorded and synchronised through the Lab Streaming Layer.
+64-channel EEG (actiCAP slim with a LiveAmp amplifier, 500 Hz, referenced
+online to FCz), surface EMG of four right-leg muscles (Trigno Avanti, 2000 Hz),
+and an experiment stream carrying knee angle from a rotary encoder at the
+hinge, the auditory cues, and each trial's pressure level and reported score.
+PAM force was recorded from a load cell in six participants only, and the
+manuscript does not report force. The experiment stream has no fixed sample
+rate, because samples were pushed as they became available, so aligning it
+rests on its per-sample LSL timestamps.
+ 
 > **Status.** This repository accompanies a manuscript in preparation. Figure
 > and section numbers refer to that manuscript and may change before
 > publication.
-
+ 
 ---
 
 ## Start here
