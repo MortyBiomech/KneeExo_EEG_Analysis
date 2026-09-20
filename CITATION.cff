@@ -34,6 +34,15 @@ authors:
     affiliation: 'Lauflabor Locomotion Laboratory, TU Darmstadt'
 license: GPL-3.0-only
 repository-code: 'https://github.com/MortyBiomech/KneeExo_EEG_Analysis'
+identifiers:
+  - type: doi
+    value: 10.5281/zenodo.22851769
+    description: >-
+      Concept DOI for the archived code. Always resolves to the most recent
+      release, and is the one to cite unless a specific version is meant.
+  - type: doi
+    value: 10.5281/zenodo.22851770
+    description: DOI of release v1.0.0
 keywords:
   - mobile brain/body imaging
   - MoBI

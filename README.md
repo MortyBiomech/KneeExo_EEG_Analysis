@@ -1,4 +1,5 @@
 # Cortical and neuromuscular correlates of graded physical demand in human-exoskeleton interaction
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.22851769.svg)](https://doi.org/10.5281/zenodo.22851769)
 
 Analysis code for the KneeExo-EEG mobile brain/body imaging (MoBI) study.
 
