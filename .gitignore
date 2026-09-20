@@ -27,17 +27,6 @@ code/config/local_paths.m
 *.icatimef
 *.study
 
-# The derived tables in data/derived/ ARE tracked on purpose - they are what
-# makes the figures reproducible without the raw data. They are whitelisted
-# below after the blanket ignore of data/.
-data/*
-!data/*.md
-!data/derived/
-!data/derived/*/
-!data/derived/*/*.mat
-!data/derived/*/*/*.mat
-!data/derived/*.mat
-!data/derived/MANIFEST.csv
 
 # OS
 .DS_Store
