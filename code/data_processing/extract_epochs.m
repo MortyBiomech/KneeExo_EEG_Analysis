@@ -274,9 +274,15 @@ end
 
 % ------------------------------------------------------------------------
 function env = emg_envelope(rawEMG, fs)
-% Linear envelope: bandpass 20 to 450 Hz, rectify, lowpass at 4 Hz.
+% Linear envelope: bandpass 20 to 450 Hz, rectify, lowpass at 8 Hz.
 % Zero phase throughout, so the envelope is not shifted relative to the
 % events.
+%
+% The 8 Hz is the design cutoff of the Butterworth, which is what the
+% Methods section states. FILTFILT then applies that filter twice, so the
+% effective magnitude response is squared and its own 3 dB point sits near
+% 0.80 of the design cutoff, about 6.4 Hz. That is the usual meaning of
+% "8 Hz, 2nd order, zero phase" and no compensation is applied here.
 
     nyq = fs / 2;
 
@@ -285,7 +291,7 @@ function env = emg_envelope(rawEMG, fs)
 
     x = abs(x);
 
-    [b, a] = butter(2, 4 / nyq);
+    [b, a] = butter(2, 8 / nyq);
     env = filtfilt(b, a, x)';
 
 end
