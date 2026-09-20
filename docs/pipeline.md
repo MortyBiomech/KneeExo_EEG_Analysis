@@ -14,9 +14,9 @@ laid out on disk under `cfg.raw`, and the conventions that will bite you.
 Fourteen participants, numbered `sub-5` to `sub-18`, performed a seated
 visuomotor pursuit-tracking task with the right leg while wearing a knee
 exoskeleton actuated by a pneumatic artificial muscle. The PAM **imposed
-demand** rather than assisting, at three supply pressures, Low 1 bar, Medium
-3 bar and High 6 bar, written `P1`, `P3` and `P6` in the code. Each trial was
-rated for perceived difficulty from 1 (easy) to 10 (difficult).
+demand** at three supply pressures, Low 1 bar, Medium 3 bar and High 6 bar,
+written `P1`, `P3` and `P6` in the code. Each trial was rated for perceived
+difficulty from 1 (easy) to 10 (difficult).
 
 Three streams were captured together over LSL into the `ses-S00X` folders of
 each participant:
