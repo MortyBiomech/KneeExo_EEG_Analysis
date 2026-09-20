@@ -1,17 +1,18 @@
 cff-version: 1.2.0
 title: >-
   Analysis code for "Cortical and neuromuscular correlates of graded physical
-  demand during knee-exoskeleton-assisted tracking"
+  demand in human-exoskeleton interaction"
 message: If you use this software, please cite both the software and the paper.
 type: software
 abstract: >-
-  Analysis code for a mobile brain/body imaging (MoBI) study of how cortical and 
-  neuromuscular activity track graded physical demand in human-exoskeleton interaction, 
-  and of where the difficulty people report during effortful movement comes from. 
-  Fourteen participants performed a seated visuomotor pursuit-tracking task with 
-  the right leg while wearing a knee exoskeleton actuated by a pneumatic artificial 
-  muscle. The exoskeleton imposed demand at three supply pressures while the 
-  movement to be tracked was held constant, and every trial was rated for perceived
+  Analysis code for a mobile brain/body imaging (MoBI) study of how cortical and
+  neuromuscular activity track graded physical demand in human-exoskeleton
+  interaction, and of where the difficulty people report during effortful
+  movement comes from. Fourteen
+  participants performed a seated visuomotor pursuit-tracking task with the right
+  leg while wearing a knee exoskeleton actuated by a pneumatic artificial muscle.
+  The exoskeleton imposed demand at three supply pressures while the movement to
+  be tracked was held constant, and every trial was rated for perceived
   difficulty. EEG, surface EMG and the experiment stream were recorded together
   over the Lab Streaming Layer. The repository covers the whole pipeline, from
   the raw recordings through preprocessing, independent component analysis and

@@ -1,4 +1,4 @@
-# Cortical and neuromuscular correlates of graded physical demand during knee-exoskeleton-assisted tracking
+# Cortical and neuromuscular correlates of graded physical demand in human-exoskeleton interaction
 
 Analysis code for the KneeExo-EEG mobile brain/body imaging (MoBI) study.
 
@@ -11,7 +11,7 @@ reference was individualised for each participant beforehand, from one minute
 of free movement in the exoskeleton with the PAM detached, so the movement to
 be tracked was the same at every level of demand.
 
-**The exoskeleton imposed demand; it did not assist.** The PAM was routed over
+**The exoskeleton imposed demand.** The PAM was routed over
 the anterior aspect of the knee, so pressurising it produced a knee-extension
 torque that the wearer worked against during flexion and restrained during
 early extension. Supply pressure was set to Low (1 bar), Medium (3 bar) or High
