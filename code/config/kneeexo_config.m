@@ -146,6 +146,7 @@ function cfg = kneeexo_config()
     % pointed at them if the surviving segments are ever needed.
     cfg.subjects    = 5:18;
     cfg.subjectsEMG = [5:9, 11:18];   % sub-10 has no usable EMG
+    cfg.subjectsForce = [11 12 15 16 17 18]; % load cell worn by six of the fourteen
 
 
     %% Experiment constants
